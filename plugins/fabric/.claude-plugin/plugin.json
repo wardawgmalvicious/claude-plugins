@@ -1,0 +1,12 @@
+{
+  "name": "fabric",
+  "description": "Microsoft Fabric and Power BI for Claude Code: a skill per item family (notebooks, pipelines, Lakehouses, Warehouses, semantic models, reports, Eventhouses, ontologies, variable libraries), the REST API and fab CLI, deployment, security and governance, with an agent and a hook that load an item's skill before it is edited.",
+  "author": {
+    "name": "wardawgmalvicious",
+    "url": "https://github.com/wardawgmalvicious"
+  },
+  "homepage": "https://github.com/wardawgmalvicious/claude-plugins",
+  "repository": "https://github.com/wardawgmalvicious/claude-plugins",
+  "license": "MIT",
+  "keywords": ["claude-code", "fabric", "power-bi", "microsoft-fabric"]
+}

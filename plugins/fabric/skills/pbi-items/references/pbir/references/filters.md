@@ -1,0 +1,345 @@
+## PBIR Filters Reference
+
+### Filter Scopes
+
+| Scope | Location | Applies To |
+|---|---|---|
+| Report | `report.json` → `filterConfig.filters[]` | All pages and visuals |
+| Page | `page.json` → `filterConfig.filters[]` | All visuals on the page |
+| Visual | `visual.json` → `filterConfig.filters[]` | That visual only (sibling of `visual`, not nested) |
+
+### Filter Types
+
+| `type` | Description | Use Case |
+|---|---|---|
+| `Categorical` | In / NotIn list | Year, category, brand (most common) |
+| `Advanced` | Comparison on measures or columns | Measure > threshold, ranges |
+| `TopN` | Top/bottom N by measure | Top 10 customers |
+| `VisualTopN` | Visual-level TopN | Auto-applied by some visuals |
+| `RelativeDate` | Rolling date window | Last N days/months/years |
+| `RelativeTime` | Rolling time window | Last N hours/minutes |
+| `Tuple` | Multi-column composite | Rare |
+
+### Filter Object Properties
+
+| Property | Type | Notes |
+|---|---|---|
+| `name` | string | 20-char hex unique ID |
+| `displayName` | string | Optional pane label |
+| `field` | object | Column or Measure reference (query projection syntax) |
+| `type` | string | See table above |
+| `filter` | object | Where clause — optional when no defaults |
+| `isHiddenInViewMode` | boolean | Hide from pane in reading view |
+| `isLockedInViewMode` | boolean | Visible but not editable |
+| `howCreated` | string | `"User"` for user-created |
+| `ordinal` | integer | Display order (optional) |
+| `objects` | object | `requireSingleSelect`, `isInvertedSelectionMode` |
+
+### filter Body Shape
+
+```json
+"filter": {
+  "Version": 2,
+  "From": [{"Name": "e", "Entity": "Exchange Rate", "Type": 0}],
+  "Where": [{"Condition": {...}}]
+}
+```
+
+**Where clause rules**:
+- `From[]` defines aliases
+- Conditions reference alias via `"SourceRef": {"Source": "e"}` — NOT `Entity`
+- String values: inner single quotes, doubled for escape: `"'O''Brien'"`
+- Integer values: `L` suffix (`"2022L"`); datetimes: `"datetime'2024-01-01T00:00:00.0000000'"`
+- Each value is wrapped in its own array: `[[{val1}], [{val2}]]`
+
+### Categorical — In (Multi-Select Default)
+
+```json
+{
+  "name": "d3f20cea05c37b47123a",
+  "field": {"Column": {"Expression": {"SourceRef": {"Entity": "Exchange Rate"}}, "Property": "From Currency"}},
+  "type": "Categorical",
+  "filter": {
+    "Version": 2,
+    "From": [{"Name": "e", "Entity": "Exchange Rate", "Type": 0}],
+    "Where": [{"Condition": {"In": {
+      "Expressions": [{"Column": {"Expression": {"SourceRef": {"Source": "e"}}, "Property": "From Currency"}}],
+      "Values": [
+        [{"Literal": {"Value": "'EUR'"}}],
+        [{"Literal": {"Value": "'USD'"}}]
+      ]
+    }}}]
+  }
+}
+```
+
+### Categorical — Inverted (Not In)
+
+Wrap `In` with `Not` AND set `isInvertedSelectionMode: true`.
+
+```json
+"Where": [{"Condition": {"Not": {"Expression": {"In": {
+  "Expressions": [{"Column": {"Expression": {"SourceRef": {"Source": "b"}}, "Property": "Brand"}}],
+  "Values": [[{"Literal": {"Value": "'ASAN'"}}]]
+}}}}}],
+```
+
+```json
+"objects": {"general": [{"properties": {
+  "isInvertedSelectionMode": {"expr": {"Literal": {"Value": "true"}}}
+}}]}
+```
+
+### No Default (Empty Filter)
+
+Omit `filter` entirely, OR include with empty `Where`:
+
+```json
+"filter": {"Version": 2, "From": [{"Name": "d", "Entity": "Date", "Type": 0}], "Where": []}
+```
+
+### Advanced — Comparison
+
+```json
+{
+  "name": "1c9a23490ebe5441b781",
+  "field": {"Measure": {"Expression": {"SourceRef": {"Entity": "Budget"}}, "Property": "Budget vs. Turnover (%)"}},
+  "type": "Advanced",
+  "filter": {
+    "Version": 2,
+    "From": [{"Name": "d", "Entity": "Budget", "Type": 0}],
+    "Where": [{"Condition": {"Comparison": {
+      "ComparisonKind": 1,
+      "Left": {"Measure": {"Expression": {"SourceRef": {"Source": "d"}}, "Property": "Budget vs. Turnover (%)"}},
+      "Right": {"Literal": {"Value": "0D"}}
+    }}}]
+  }
+}
+```
+
+### ComparisonKind Codes
+
+`0`=Equal, `1`=GreaterThan, `2`=GreaterThanOrEqual, `3`=LessThanOrEqual, `4`=LessThan.
+
+### Between (Range, Inclusive)
+
+```json
+"Where": [{"Condition": {"Between": {
+  "Expression": {"Column": {"Expression": {"SourceRef": {"Source": "d"}}, "Property": "Date"}},
+  "LowerBound": {"Literal": {"Value": "datetime'2024-01-01T00:00:00.0000000'"}},
+  "UpperBound": {"Literal": {"Value": "datetime'2024-12-31T00:00:00.0000000'"}}
+}}}]
+```
+
+### RelativeDate — DateSpan / DateAdd
+
+TimeUnit codes: `0`=Day, `1`=Week, `2`=Month, `3`=Year, `4`=Decade, `5`=Second, `6`=Minute, `7`=Hour.
+
+Current period start:
+
+```json
+"Right": {"DateSpan": {"Expression": {"Now": {}}, "TimeUnit": 2}}
+```
+
+Start of the month 3 months ago, `DateAdd` inside `DateSpan`, the
+nesting upstream's template uses (microsoft/skills-for-fabric,
+`skills/powerbi-report-authoring/references/filters.md`):
+
+```json
+"Right": {"DateSpan": {
+  "Expression": {"DateAdd": {"Expression": {"Now": {}}, "Amount": -3, "TimeUnit": 2}},
+  "TimeUnit": 2
+}}
+```
+
+The other nesting, `DateAdd` around `DateSpan`, passes `pbir validate`
+and can still fail in the service: as a visual filter's `Between` bound
+it rendered *Error fetching data for this visual* until nested as above
+(pbir 0.9.29, Direct Lake model, 2026-10-07; once, in an edit that also
+changed a projection's `displayName`).
+
+`RelativeTime` uses the same shape with TimeUnit `5`/`6`/`7`.
+
+### TopN
+
+The ranking subquery must be declared as a **`From` source** (`"Type": 2`) and
+referenced by alias from `In.Table.SourceRef` — the only shape Desktop
+serializes (verified against microsoft/BCApps PBIR sources + live repro,
+2026-08). Do **not** inline the `Subquery` under `In.Table`, and do not author
+a bare `VisualTopN` condition: those forms pass PBIR schema validation but the
+filter **matches nothing** (the visual renders empty) and the service editor
+**freezes on save-edits** trying to rebuild the filter card from it.
+
+```json
+"type": "TopN",
+"filter": {
+  "Version": 2,
+  "From": [
+    {"Name": "subquery", "Expression": {"Subquery": {"Query": {
+      "Version": 2,
+      "From": [
+        {"Name": "c", "Entity": "Customer", "Type": 0},
+        {"Name": "s", "Entity": "Sales", "Type": 0}
+      ],
+      "Select": [{"Column": {"Expression": {"SourceRef": {"Source": "c"}}, "Property": "Customer Name"}, "Name": "field"}],
+      "OrderBy": [{"Direction": 2, "Expression": {"Measure": {"Expression": {"SourceRef": {"Source": "s"}}, "Property": "Revenue"}}}],
+      "Top": 10
+    }}}, "Type": 2},
+    {"Name": "c", "Entity": "Customer", "Type": 0}
+  ],
+  "Where": [{"Condition": {"In": {
+    "Expressions": [{"Column": {"Expression": {"SourceRef": {"Source": "c"}}, "Property": "Customer Name"}}],
+    "Table": {"SourceRef": {"Source": "subquery"}}
+  }}}]
+}
+```
+
+`OrderBy` `Direction: 2` = descending (Top N); `1` = ascending (Bottom N).
+Desktop emits `Select[].Name` as the literal `"field"`. The subquery evaluates
+inside the visual's filter context, so page/report filters and slicers scope
+the ranking.
+
+### Compound — And / Or
+
+```json
+"Condition": {"And": {
+  "Left":  {"Comparison": {"ComparisonKind": 2, "Left": {...}, "Right": {...}}},
+  "Right": {"Comparison": {"ComparisonKind": 3, "Left": {...}, "Right": {...}}}
+}}
+```
+
+### Condition Reference
+
+| Condition | Description |
+|---|---|
+| `In` | Value in list |
+| `Not` → `In` | Value NOT in list |
+| `Comparison` | Single comparison |
+| `Between` | Inclusive range |
+| `And` / `Or` | Compound |
+| `Not` | Negation wrapper |
+| `Contains` | String contains |
+| `StartsWith` | String prefix |
+| `DateSpan` | Relative period |
+| `DateAdd` | Offset date expression |
+| `In` + `Subquery` From source | Top/bottom N — see TopN section; never author a bare `VisualTopN` condition |
+| `Now` | Current datetime — inside DateSpan/DateAdd |
+
+### Contains / StartsWith — Minimal Shape
+
+```json
+"Where": [{"Condition": {"Contains": {
+  "Left":  {"Column": {"Expression": {"SourceRef": {"Source": "c"}}, "Property": "Customer Name"}},
+  "Right": {"Literal": {"Value": "'Acme'"}}
+}}}]
+```
+
+`StartsWith` uses the same shape — swap `Contains` for `StartsWith`.
+
+### Hide / Lock / Single-Select
+
+| Option | Effect |
+|---|---|
+| `isHiddenInViewMode: true` | Hidden from filter pane in reading view |
+| `isLockedInViewMode: true` | Visible but not editable |
+| `objects.general.properties.requireSingleSelect` | Force exactly one value |
+
+Common combinations:
+
+| Use Case | Hidden | Locked | SingleSelect |
+|---|---|---|---|
+| Hidden background filter | true | true | – |
+| Locked parameter | false | true | true |
+| Normal multi-select | false | false | false |
+| Visible single-select | false | false | true |
+
+Never hide visual-level filters — confuses users. Only hide report/page filters with justification.
+
+### Filter Pane Visibility — outspacePane on report.json (owned here)
+
+Only `visible` and `expanded` live at `report.json → objects.outspacePane`. **All styling (colors, text, backgrounds, input box, width) belongs in the theme — see [themes.md](themes.md).**
+
+```json
+"objects": {"outspacePane": [{"properties": {
+  "visible":  {"expr": {"Literal": {"Value": "true"}}},
+  "expanded": {"expr": {"Literal": {"Value": "false"}}}
+}}]}
+```
+
+### Discovering Filter Values
+
+```bash
+pbir model "Report.Report" -d                                                   # dump model
+pbir model "Report.Report" -d -t Date                                           # single table
+pbir model "Report.Report" -q "EVALUATE DISTINCT('Date'[Calendar Year (ie 2021)])"
+```
+
+### Gotchas
+
+| Issue | Cause | Fix |
+|---|---|---|
+| Filter silently ignored | `SourceRef.Entity` in `Where` instead of `SourceRef.Source` | Reference alias defined in `From[]` |
+| Top-N visual empty AND service editor freezes on save | Subquery inlined in `In.Table` (or bare `VisualTopN`) — schema-valid but not engine-valid | Declare subquery as a `From` source (`Type: 2`), reference via `In.Table.SourceRef` — see TopN section |
+| "Cleanup" report-level filter silently shrinks totals | Report filters remove matching rows from every visual, not just from slicers/legends | Quantify the excluded members' measure impact first (DAX); scope cosmetic exclusions to the slicer/visual level |
+| Filter values not selected | Values not double-wrapped | Each value is its own array: `[[{v1}], [{v2}]]` |
+| Deploy error on report filter pane styling | Styling in `report.json` outspacePane | Move to theme `visualStyles["*"]["*"].outspacePane` |
+| Inverted filter still shows selected values | Missing `isInvertedSelectionMode: true` | Set it alongside the `Not`→`In` Where |
+| `RelativeDate` rolling window off by one | Missing `DateAdd` offset | Put a `DateAdd` with negative `Amount` inside the `DateSpan` — see *RelativeDate* |
+| *Error fetching data for this visual* on a `RelativeDate` bound that passes `pbir validate` | `DateAdd` wrapped around `DateSpan` — schema-valid, not engine-valid | Nest `DateAdd` inside `DateSpan` — see *RelativeDate* |
+| String literal with apostrophe fails | Unescaped single quote | Double it: `"'O''Brien'"` |
+| Integer filter value rejected | Used `D` suffix | Integers use `L` |
+| DateTime filter rejected | Missing trailing `'` | `"datetime'YYYY-MM-DDTHH:MM:SS.0000000'"` |
+| `filterConfig` in wrong place on visual | Nested inside `visual` | Sibling of `visual` at root of visual.json |
+| Empty-filter default values appear | Previous `Where` clause present | Use `"Where": []` or omit `filter` entirely |
+| Visual filter hidden causes UX confusion | `isHiddenInViewMode` on visual scope | Don't hide visual-level filters |
+
+### Reference
+
+- Microsoft Learn: [Format filters in Power BI reports (filter pane)](https://learn.microsoft.com/power-bi/create-reports/power-bi-report-filter)
+- Microsoft Learn: [Filter types overview](https://learn.microsoft.com/power-bi/create-reports/power-bi-report-filter-types)
+- Microsoft Learn: [Slicers in Power BI](https://learn.microsoft.com/power-bi/visuals/power-bi-visualization-slicers)
+- Comprehensive MS Learn link bundle (filter scopes / types / pane visibility / drillthrough / theme styling / PBIR file format): § MS Learn link bundle, below
+
+### MS Learn link bundle
+
+Curated set of Microsoft Learn pages relevant to Power BI report filters — what each `type` means in the user-facing Filters pane, the filter-pane visibility/styling split between report.json and theme, and how filters serialize as PBIR `filterConfig` objects with the SQExpr `From[]` / `Where[]` shape.
+
+The 3 highest-leverage entry points (filter pane format, filter types, slicers concept) are also linked in § Reference above for in-context use; this section holds the comprehensive set.
+
+**Note on docs split:** PBIR `filterConfig` JSON internals (Version 2, From[]/Where[], `SourceRef.Source` alias rule, ComparisonKind codes, RelativeDate TimeUnit codes) are *not* documented narratively on MS Learn — the canonical machine-readable reference is the JSON schema family at `developer.microsoft.com/json-schemas/fabric/...`. The Power BI Desktop / Service pages document what user choices the JSON encodes.
+
+#### User-facing concept (what the JSON encodes)
+
+- [Format filters in Power BI reports (filter pane)](https://learn.microsoft.com/power-bi/create-reports/power-bi-report-filter) — visibility, expand/collapse, lock/hide per filter, the report-level `outspacePane` properties the parent skill calls out.
+- [Filters in Power BI Desktop reports](https://learn.microsoft.com/power-bi/create-reports/power-bi-report-add-filter) — the three scopes (Report / Page / Visual) that map to where `filterConfig` lives.
+- [Filter types overview](https://learn.microsoft.com/power-bi/create-reports/power-bi-report-filter-types) — Basic (Categorical) / Advanced / Top N / Relative Date / Relative Time. Maps directly to the parent skill's `type` field table.
+- [Use the relative date slicer / filter](https://learn.microsoft.com/power-bi/visuals/desktop-slicer-filter-date-range) — RelativeDate semantics: time units, anchor date.
+
+#### Slicers (sibling concept — slicers are visuals, not filters)
+
+- [Slicers in Power BI](https://learn.microsoft.com/power-bi/visuals/power-bi-visualization-slicers) — clarifies the parent skill's "slicers are visuals bound to categorical data" note.
+- [Hierarchy slicers](https://learn.microsoft.com/power-bi/create-reports/power-bi-slicer-hierarchy-multiple-fields) — multi-field slicer; relevant when authoring slicer-as-visual.
+
+#### Filter pane visibility/expansion (`outspacePane` in report.json)
+
+- [Format filters in Power BI reports — filter pane settings](https://learn.microsoft.com/power-bi/create-reports/power-bi-report-filter#format-the-filters-pane-and-cards) — UI surface for the `visible` / `expanded` properties. Styling lives in the theme — see [themes.md](themes.md).
+
+#### Drillthrough and cross-report drillthrough
+
+- [Use drillthrough](https://learn.microsoft.com/power-bi/create-reports/desktop-drillthrough) — drillthrough page filter binding (`Column`-typed filter in `filterConfig`).
+- [Cross-report drillthrough](https://learn.microsoft.com/power-bi/create-reports/desktop-drillthrough#enable-cross-report-drillthrough) — when filter state spans reports.
+
+#### Filter pane theming (cross-skill)
+
+- [Format filters in Power BI reports — Theming for Filters pane](https://learn.microsoft.com/power-bi/create-reports/power-bi-report-filter#theming-for-filters-pane) — the theme keys (`outspacePane`, `filterCard`) where colors/text/widths belong. The [custom-theme page](https://learn.microsoft.com/power-bi/create-reports/report-themes-create-custom#set-properties-for-visual-types) shows only a `filterCard` example. See [themes.md](themes.md).
+
+#### PBIR file format (where filters live)
+
+- [Power BI Desktop project — report folder](https://learn.microsoft.com/power-bi/developer/projects/projects-report) — `report.json`, `pages/<page>/page.json`, `pages/<page>/visuals/<v>/visual.json` locations of `filterConfig`.
+- [Report definition (Fabric REST envelope)](https://learn.microsoft.com/rest/api/fabric/articles/item-management/definitions/report-definition) — definition envelope. The `definition.pbir` file targets the semantic model that filter `Entity` references resolve against.
+
+### See also
+
+- [visual-json.md](visual-json.md) — visual.json `filterConfig` placement (sibling of `visual`)
+- [themes.md](themes.md) — filter pane and filter card styling
+- [bookmarks.md](bookmarks.md) — `byExpr` filter snapshots (same SQExpr shape)

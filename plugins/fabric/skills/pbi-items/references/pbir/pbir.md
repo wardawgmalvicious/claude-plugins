@@ -1,0 +1,369 @@
+# PBIR reports
+
+## PBIR Report Workflow
+
+End-to-end workflow for building Power BI reports from a published semantic model using `pbir` CLI. Requires the model to already exist in a Fabric/Power BI workspace.
+
+### Read the reference first
+
+The steps below build a report through the `pbir` CLI. Anything they do
+not cover has a reference in `references/`, and nothing loads one for
+you: read it before acting.
+
+A report's definition and REST calls have a file of their own. Read it
+first for its job; past it, the REST spec's folder, then Learn, by `microsoft-learn-mcp`, or with no server, `curl -sL -H 'Accept: text/markdown' <page URL>` (undocumented, read 2026-11-07):
+
+| The job | Read first |
+| --- | --- |
+| A report's definition parts or formats, `byConnection` against `byPath`, or its REST calls | [references/report-api.md](references/report-api.md) |
+
+A live page that contradicts a line here wins: say so, act on the page,
+and route the fix by `capture-learning`, bar a dated measured line that
+names the page it overrules and the call that measured it, which a page
+changed since its date sends back to re-measure. An observed claim is cited
+or marked pending a doc check, and stands, marked observed, only where no
+page covers it.
+
+**Before a hand edit of report JSON**, read the file's reference:
+
+| Before editing | Read |
+| --- | --- |
+| `visual.json` | [visual-json.md](references/visual-json.md); for a colour rule, gradient, data bar or icon, [conditional-formatting.md](references/conditional-formatting.md) too |
+| `reportExtensions.json`, the extension measures | [conditional-formatting.md](references/conditional-formatting.md) |
+| `page.json` or `pages.json` | [pages.md](references/pages.md) |
+| a `filterConfig`, in `report.json`, `page.json` or `visual.json`, or the filter pane's visibility | [filters.md](references/filters.md) |
+| a theme file under `StaticResources/`, or `report.json`'s `themeCollection` | [themes.md](references/themes.md) |
+| `bookmarks.json` or a `*.bookmark.json` | [bookmarks.md](references/bookmarks.md) |
+
+**Before a `pbir` command the steps do not show**, find its verb in
+[pbir-cli.md](references/pbir-cli.md) and its flags in
+[pbir-cli-commands.md](references/pbir-cli-commands.md).
+
+**Before a design decision** (tone, chart choice, colour, typography,
+layout, accessibility) **or a redesign, restyle or critique**, read
+[design/design.md](references/design/design.md). Its Design Brief comes
+back to these steps to be built.
+
+### Workflow Steps
+
+The `Step` sections below are the workflow, in order. Step 3 measures
+the scaffold before any layout is computed.
+
+### Rules
+
+- Keep visuals from overlapping
+- Favor theme changes over per-visual overrides
+- Favor extension measures (`_Fmt`) with theme tokens (`good`/`bad`) for conditional formatting
+- Always create reports inside a named project folder
+- Run `pbir validate` after every mutation
+- Use PascalCase for project / report / page / visual names
+- Edit PBIR JSON directly or with `pbir set`, not with Tabular Editor
+- Add no `PBI_*` annotations by hand
+
+### Step 1 — Requirements & Model Discovery
+
+```bash
+pbir model                                                               # List reports + models
+pbir model "Sales.Report" -d                                             # Model definition
+pbir model "Sales.Report" -d -t Sales                                    # Filter to table
+pbir model "Sales.Report" -q "EVALUATE VALUES('Date'[Year])"             # Query for filter values
+```
+
+Ask the user (via `AskUserQuestion`) to confirm whichever of these the
+request leaves open:
+
+- Which KPIs to surface (measures + targets)
+- Trend granularity (daily / weekly / monthly / quarterly)
+- Categorical breakdowns
+- Detail table/matrix hierarchies
+- Report-level vs page-level filters
+
+### Step 2 — Scaffold Report
+
+```bash
+mkdir -p SalesDashboard && cd SalesDashboard
+pbir new report "Sales.Report" -c "MyWorkspace/Sales.SemanticModel"
+pbir pages rename "Sales.Report/Page 1.Page" --to Overview -f
+pbir pages active-page "Sales.Report" "Overview"
+```
+
+The rename moves the folder and `displayName` only. Set `page.json`
+`name` and `pages.json` `pageOrder` and `activePageName` to the new
+folder name by hand, then `pbir validate` (0.9.29 and 0.9.32,
+2026-10-08).
+
+Resulting layout:
+
+```
+SalesDashboard/
+  Sales.pbip
+  Sales.Report/
+    definition.pbir
+    definition/
+      version.json
+      report.json
+      pages/
+        pages.json
+        Overview/
+          page.json
+          visuals/Title.Visual/visual.json
+    StaticResources/
+```
+
+### Step 3 — Measure the Scaffold Before Laying Out
+
+`pbir new report` produces a default page with some combination of a pre-placed title textbox, a baked-in theme, and canvas defaults. Exact coordinates, theme name, and visual positions depend on the CLI version and the chosen `--from-template`. Before planning anything, read the actual scaffold instead of assuming:
+
+```bash
+pbir cat "Sales.Report/Overview.Page"                                    # Full page.json (width, height, displayOption)
+pbir ls  "Sales.Report/Overview.Page"                                    # Existing visuals on the page
+pbir tree "Sales.Report" -v                                              # Every visual + bindings
+pbir cat "Sales.Report/theme"                                            # Active theme name + palette
+```
+
+From the output, record:
+
+1. Canvas `width` / `height` from `page.json`, which the base theme and the template set (Common Page Sizes, below).
+2. Every existing visual's `position.x`, `position.y`, `position.width`, `position.height`. For bulk reads use `jq '.position' <path>/visual.json` across the `visuals/` folder.
+3. The tallest `y + height` among existing visuals — the first safe `y` for a new row you add.
+4. Active base and custom theme names — so you don't accidentally re-apply a default over meaningful styling.
+
+All subsequent coordinates should be derived from those measured values, not hardcoded from this doc.
+
+### Step 4 — Layout Math (3-30-300)
+
+Every layout starts from four constants: `(page_width, page_height, margin, gap)`.
+
+**Example (1280 x 720 canvas with `margin=24`, `gap=16`):**
+
+```
+usable_width  = page_width  - (2 * margin) = 1232
+usable_height = page_height - (2 * margin) = 672
+3 equal columns = (usable_width - 2*gap) / 3 = 400
+2 equal columns = (usable_width - gap) / 2 = 608
+```
+
+Substitute your measured `page_width` / `page_height` — do not hardcode 1280/720.
+
+**3-30-300 visual hierarchy** — design for three viewing distances:
+
+| Distance | View | Payload |
+|---|---|---|
+| 3 seconds | Glance | Headline KPIs + target delta |
+| 30 seconds | Scan | Trend direction + top-1 breakdown |
+| 300 seconds | Investigate | Detail table with hierarchies + conditional formatting |
+
+**Standard 3-row composition** — compute each row from the measured scaffold:
+
+| Row | Content |
+|---|---|
+| Top region | Existing title / header visuals already in the scaffold |
+| Row 1 | 3 KPI visuals side-by-side |
+| Row 2 | Line chart + bar chart (2 columns) |
+| Row 3 | Full-width `tableEx` detail |
+
+Row heights, the gap between rows, and `y` offsets all come from the measured scaffold plus your chosen `margin` / `gap`. Verify the total fits inside `page_height` before placing any visual.
+
+### Step 5 — Add Visuals (Coordinates Explicit)
+
+The coordinates below are **illustrative** — computed from a measured 1280x720 scaffold with a ~90 px header region, `margin=24`, `gap=16`. Substitute values from your actual measurement before running these commands.
+
+```bash
+# Row 1: KPIs
+pbir add visual kpi "Sales.Report/Overview.Page" --title "Revenue" \
+  -d "Indicator:Invoices.Turnover" -d "Goal:Invoices.Turnover 1YP" \
+  -d "TrendLine:Date.Calendar Month (ie Jan)" \
+  --x 24 --y 120 --width 400 --height 140
+
+pbir add visual kpi "Sales.Report/Overview.Page" --title "OrderLines" \
+  -d "Indicator:Orders.Order Lines" -d "Goal:Orders.Order Lines 1YP" \
+  --x 440 --y 120 --width 400 --height 140
+
+pbir add visual kpi "Sales.Report/Overview.Page" --title "MarginPct" \
+  -d "Indicator:Invoices.Selling Margin (%)" -d "Goal:Invoices.Selling Margin (%) 1YP" \
+  --x 856 --y 120 --width 400 --height 140
+
+# Row 2: Trend + Breakdown
+pbir add visual lineChart "Sales.Report/Overview.Page" --title "MonthlyTrend" \
+  --x 24 --y 276 --width 608 --height 208
+pbir visuals bind "Sales.Report/Overview.Page/MonthlyTrend.Visual" \
+  -a "Category:Date.Calendar Month (ie Jan)" -a "Y:Invoices.Turnover"
+
+pbir add visual barChart "Sales.Report/Overview.Page" --title "ByRegion" \
+  -d "Category:Regions.Territory" -d "Y:Invoices.Turnover" \
+  --x 648 --y 276 --width 608 --height 208
+
+# Row 3: Detail
+pbir add visual tableEx "Sales.Report/Overview.Page" --title "DetailByAccount" \
+  --x 24 --y 500 --width 1232 --height 196
+pbir visuals bind "Sales.Report/Overview.Page/DetailByAccount.Visual" \
+  -a "Values:Customers.Key Account Name" -a "Values:Invoices.Turnover" -a "Values:Orders.Order Lines"
+```
+
+### Step 6 — Spacing Sanity-Check
+
+After placing visuals, verify the arithmetic yourself:
+
+```
+left_margin + usable_width + right_margin == page_width
+top_region + Σ(row_heights) + (n-1) * gap + bottom_margin == page_height
+```
+
+If either equation fails, adjust before saving. `pbir tree "Sales.Report" -v` lists every visual's position in one command.
+
+### Step 7 — Sort, Filters, Theme Overrides
+
+```bash
+# Charts auto-sort descending by first measure. Set explicitly after bind.
+pbir visuals sort "Sales.Report/Overview.Page/ByRegion.Visual" \
+  -f "Invoices.Turnover" -d Descending
+
+# Report-level filters (apply to all pages)
+pbir add filter Date Year     -r "Sales.Report" --values 2025
+pbir add filter Geography Region -r "Sales.Report"
+
+# Page-level filters
+pbir add filter Products Category -p "Sales.Report/Overview.Page"
+```
+
+### Step 8 — Title Hierarchy
+
+Distribute meaning across the title hierarchy — never say the same thing twice.
+
+| Level | Content |
+|---|---|
+| Page title (textbox) | The subject — `"OrderLines"` |
+| Visual titles | The differentiator — `"byKeyAccount"`, `"MonthlyTrend"` |
+| Subtitles | Hide — almost always redundant |
+
+```bash
+pbir visuals subtitle "Sales.Report/Overview.Page/MonthlyTrend.Visual" --no-show
+```
+
+Hide axis titles when the axis is self-evident (month names on x-axis). Hide category labels on cards when the visual title describes the metric.
+
+### Step 9 — Conditional Formatting via Extension Measures
+
+Prefer extension measures returning theme tokens (`"good"`, `"bad"`) over hex strings so the theme can be rebranded centrally.
+
+```bash
+pbir dax measures add "Sales.Report" -t _Fmt -n "RevenueStatusColor" \
+  -e 'IF([Turnover] >= [Turnover 1YP], "good", "bad")' --data-type Text
+
+pbir visuals cf "Sales.Report/Overview.Page/ByRegion.Visual" \
+  --measure "dataPoint.fill _Fmt.RevenueStatusColor"
+```
+
+### Step 10 — Inferring Time Granularity from Filter Context
+
+| Active Filter | Trend Granularity | Date Column |
+|---|---|---|
+| Year (e.g., 2025) | Monthly | `Date.Calendar Month (ie Jan)` |
+| Quarter | Monthly or Weekly | `Date.Calendar Month (ie Jan)` / `Date.Calendar Week EU` |
+| Month | Daily or Weekly | `Date.Date` / `Date.Calendar Week EU` |
+| No date filter | Monthly or Quarterly | `Date.Calendar Month Year` / `Date.Calendar Quarter Year` |
+
+Default to monthly when unsure.
+
+### Step 11 — Validate, Publish, Open
+
+```bash
+pbir validate "Sales.Report"
+pbir tree     "Sales.Report" -v
+pbir publish  "Sales.Report" "MyWorkspace.Workspace/Sales.Report" -o     # Publish + open
+pbir open     "Sales.Report"                                             # Local in Desktop
+```
+
+> Skip `pbir open` for Direct Lake models — opening the PBIP forces Desktop
+> into remote modeling and offers to overwrite the live workspace model.
+> Use the service-side check below instead.
+
+### Step 12 — Visual Verification (Service-Side PNG Export)
+
+After publishing, render the report server-side and review the PNGs — this is
+the visual feedback loop, no Power BI Desktop involved. Uses the Power BI
+`exportToFile` API.
+
+Prerequisites: workspace on Fabric/Premium capacity; for PNG the tenant
+setting **"Export reports as image files"** must be enabled (off by default —
+fall back to `PDF`, which is on by default). Token audience is the Power BI
+API, not Fabric.
+
+```bash
+TOKEN=$(az account get-access-token --resource https://analysis.windows.net/powerbi/api --query accessToken -o tsv)
+BASE="https://api.powerbi.com/v1.0/myorg/groups/<workspaceId>/reports/<reportId>"
+
+# 1. Start the export job (202 Accepted)
+EXPORT_ID=$(curl -s -X POST "$BASE/ExportTo" -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" -d '{"format":"PNG"}' | jq -r '.id')
+
+# 2. Poll until status == "Succeeded" (percentComplete shows progress)
+curl -s "$BASE/exports/$EXPORT_ID" -H "Authorization: Bearer $TOKEN" | jq '.status'
+
+# 3. Fetch the file — multi-page reports return a .zip with one PNG per page
+curl -s "$BASE/exports/$EXPORT_ID/file" -H "Authorization: Bearer $TOKEN" -o report.zip
+unzip -o report.zip -d report-pages/
+```
+
+Then read each PNG (the agent can view images), check against the layout plan
+— overlaps, truncated titles, sort order, empty visuals, theme colors — and
+iterate: edit PBIR → `pbir validate` → `pbir publish` → re-export.
+
+Notes:
+
+- Page file names match the `Get Pages` API names (`ReportSection...`), not
+  display names — map via `GET $BASE/pages`.
+- A specific page or a bookmark state can be exported via the
+  `powerBIReportConfiguration` body (`pages`, `defaultBookmark`).
+- Empty visuals in the export usually mean a binding mismatch — see
+  `rest-api`'s `references/gotchas.md` (byConnection rebind /
+  TMDL binding diff).
+- If a `scripts/data/report-png.sh` wrapper is deployed in the repo
+  (an internal local-cli template), prefer it over raw curl.
+
+### Common Page Sizes
+
+| Type | Width x Height | Use Case |
+|---|---|---|
+| Default 16:9, Fluent 2 base theme (new reports) | 1920 x 1080 | Screen dashboards |
+| Default 16:9, Classic 2018 / Classic 2026 base themes | 1280 x 720 | Screen dashboards |
+| Large (16:9) | 1920 x 1080 | High-density executive dashboards |
+| Letter portrait | 816 x 1056 | Print/PDF reports |
+| Tooltip | 320 x 240 | Hover tooltip pages |
+| Custom tall | 1280 x 2400 | Scrollable operational pages |
+
+### KPI Target Measures
+
+Use prior-year measures as targets when available. Add via TMDL if missing:
+
+```tmdl
+measure 'Turnover 1YP' = CALCULATE([Turnover], DATEADD('Date'[Date], -1, YEAR))
+```
+
+### Gotchas
+
+| Issue | Cause | Fix |
+|---|---|---|
+| Visual overlaps existing scaffold element | Placed `y` before measuring scaffold | Run `pbir ls` + inspect `position` of every pre-existing visual first |
+| Extra blank page on report open | `pbir add page` called instead of rename | `pbir pages rename "<Name>.Report/Page 1.Page" --to Overview -f`, then align the page ids — see Step 2 |
+| Charts show wrong sort order | Default auto-sort not set after bind | `pbir visuals sort -f ... -d Descending` |
+| Theme overridden by visual formatting | Inline formatting applied | `pbir visuals clear-formatting --only-containers -f` |
+| Publish 401 | Wrong Fabric token audience | `az account get-access-token --resource https://api.fabric.microsoft.com` |
+| Page doesn't fit canvas | `displayOption` set to integer | Must be string: `"FitToPage"` etc. |
+| Extension measure CF not rendering | `references.measures` missing a dep | Every measure used in DAX must appear in `references.measures` |
+| Trend chart has wrong granularity | Granularity not matched to filter | Consult granularity table |
+| Right margin looks off | Layout math not verified | Print spacing verification (left + usable + right = width) |
+
+### Reference
+
+- Microsoft Learn: [Power BI reports overview](https://learn.microsoft.com/power-bi/create-reports/power-bi-reports-overview)
+- Microsoft Learn: [Tips and tricks for creating reports in Power BI Desktop](https://learn.microsoft.com/power-bi/create-reports/desktop-tips-and-tricks-for-creating-reports)
+- Microsoft Learn: [Design reports for accessibility](https://learn.microsoft.com/power-bi/create-reports/desktop-accessibility-creating-reports)
+- Comprehensive MS Learn link bundle (design principles / layout / field discovery / filters / CF / publish / time-granularity): [references/REFERENCE.md](references/REFERENCE.md)
+
+### See also
+
+- [pbip.md](../pbip/pbip.md) — project file layout
+- [pbir-cli.md](references/pbir-cli.md) — CLI command reference
+- [pages.md](references/pages.md) — page JSON structure
+- [tmdl.md](../tmdl/tmdl.md) — TMDL measure authoring

@@ -1,0 +1,144 @@
+# Configuring Fabric Data Agents
+
+A practical, reusable guide for configuring a Fabric Data Agent so it returns accurate, contextually relevant answers. Use this template across projects — replace the example domain (retail / sales / logistics) with your own without changing the structure.
+
+## What a Data Agent is
+
+A Fabric Data Agent is a conversational Q&A interface. It accepts natural-language questions, routes them to the right data source, generates a query (SQL / DAX / KQL / Microsoft Graph), validates it, executes it read-only, and returns a human-readable answer.
+
+Supported data sources: **Lakehouse, Warehouse, KQL Database (Eventhouse), Power BI Semantic Model, Fabric SQL Database, Mirrored Database, Ontology, Microsoft Graph**. A single agent supports up to **5 data sources in any combination**. Read-only by design — it never generates create/update/delete queries.
+
+**Ontology as a source** is the one entry there that is a whole item type of its own — see [ontology.md](../ontology.md) for modelling it, binding it to data, and its semantic enrichment, which is what makes an ontology-grounded agent answer well. Four data-agent-side behaviours belong here rather than there: an ontology source is still **preview**, the agent's first few queries after creation can fail while it initializes (wait and retry), a **known issue** stops the agent working with an ontology that uses semantic models for binding, and another makes natural-language queries error on **duplicate relationship names**, so keep them unique (troubleshooting page, checked 2026-10-07). The data agent's own ontology page adds an **ongoing outage**: a data agent may fail to add an ontology built in the new experience at all (known issue 1987, checked 2026-10-12). Aggregation needs no GQL hint, such as `Support group by in GQL`, in the agent instructions: the agent consumes the ontology as context, then "generates a source-native SQL, KQL, or DAX query, runs the query against that source, and presents the result" (Learn, checked 2026-10-06).
+
+**GA since March 2026** for the core surface: create / configure / publish / share and built-in diagnostics. Lifecycle management via Git integration and deployment pipelines is **preview** on its own Learn page, though Git's supported-items list gives Data Agents no label (2026-10-06). The **MCP endpoint** and Copilot Studio's **tool** path are GA too (checked 2026-10-06). Everything else named here as *preview* — Creator Agent, Python SDK, Copilot Studio's connected-agent path, Foundry, SPN auth — should be gated behind an explicit decision, as should Microsoft Copilot (Agent Store), whose page dropped its preview label without stating a status (2026-11-09). **Two integration paths retired 2026-08-26**: the Azure OpenAI **Assistants API** (migrate to the MCP endpoint; within the SDK, to the Fabric OpenAI **Responses** client) and **Copilot in Power BI**. Full status breakdown and migration detail:
+[references/status-and-retirements.md](references/status-and-retirements.md).
+
+## When you use this vs. Semantic Model AI Instructions
+
+- **Data Agent** — conversational chat surface. Multi-turn interactions, multi-source routing, query orchestration, response formatting. End users interact with this directly.
+- **Semantic Model AI Instructions** — guidance attached to a single semantic model. Applies wherever Copilot consumes that model (reports, Q&A, Copilot pane).
+
+The two coexist. A data agent can use a semantic model as one of its sources, in which case both sets of instructions are in play. See the `pbi-items` skill's `references/tmdl/references/ai-instructions.md`, and [references/authoring-workflow.md](references/authoring-workflow.md) for the point-by-point contrast.
+
+## Authenticating a caller
+
+The identity model and the token scope both change with the surface — mixing them is the usual cause of a 401.
+
+| Surface | Identity | Token scope |
+|---|---|---|
+| **In-product chat** (GA) | Signed-in Entra user | none — Fabric brokers it |
+| **MCP server endpoint** (GA) | User **or** service principal | `https://api.fabric.microsoft.com/.default` |
+| **Published query endpoint, SPN** (preview) | Service principal, client-credentials | `https://analysis.windows.net/powerbi/api/.default` |
+| **Copilot Studio tool** (GA, *Fabric IQ Data MCP*) | **User** (whoever chats) or **Maker** (whoever set the agent up), chosen per data agent | n/a |
+| **Foundry / Copilot Studio connected agent** (preview) | End user, On-Behalf-Of — **SPN not supported** | n/a |
+
+The two `.default` scopes are **not** interchangeable; match the scope to the endpoint you are calling. SPN auth additionally needs the **Service principals can call Fabric public APIs** tenant setting (Learn's data agent page still uses its old title, *Service principals can use Fabric APIs*), workspace Member/Contributor, and **read on every attached source** — sharing the agent item alone is not enough. Managed identities and KQL-database sources are not supported under SPN. Full setup and caveats: [references/authentication.md](references/authentication.md).
+
+## The four configuration layers
+
+Each layer has a specific job — don't conflate them. Source-specific query logic belongs in layer 2, never in the agent-level blob.
+
+| Layer | Scope | What goes in it |
+|---|---|---|
+| **1. Agent instructions** | Every source | Objective, cross-source routing rules, business-wide terminology, response guidelines |
+| **2. Data source instructions** | One source | General knowledge about the source, table descriptions, "when asked about X do Y" query logic |
+| **3. Data source descriptions** | One source, routing only | One or two sentences: what's in it, what it answers, **and what it isn't for** |
+| **4. Example queries** | One source | Question + correct query pairs; the agent retrieves the top three most relevant per user question |
+
+Hard limits, and the caveat that catches people:
+
+- **5 data sources** per agent; **100 example queries** per source.
+- **Example queries are not supported on Power BI semantic model sources.** The UI won't stop you in all flows, but they have no effect — rely on the model's own AI instructions and TMDL metadata instead. Learn adds Verified Answers, saying the agent looks for a matching one before it writes DAX, yet in one client estate on 2026-10-15 trigger phrases of two verified answers left the DAX unsteered on both runtimes, as an earlier project had: review each answer's DAX, as Learn's own workflow asks, before counting on one.
+- **Data source routing went GA in August 2026** and feeds on layers 2–4 plus schema metadata. A weak description ("contains sales data") makes the agent guess; always say what a source IS good for AND what it ISN'T.
+
+**Two more inputs, SQL sources on the preview runtime only** (both preview, 2026-10-06): **topics**, up to 1 million characters of instructions organized by topic, from which the agent retrieves the sections relevant to a question for NL2SQL; and **schema object descriptions**, business context on tables and columns. Both need the agent switched from the **standard runtime** (GA, the default) to the **preview runtime**, which carries the newest orchestration and query-generation tools before they graduate. A published agent keeps the runtime it was published with until the next publish; to read or switch it by script, see [references/authoring-workflow.md § Settings and publish, by REST](references/authoring-workflow.md#settings-and-publish-by-rest).
+
+**Semantic model sources differ by runtime too.** The preview runtime's
+**advanced DAX generation** (preview) reasons over several steps and
+searches column values to choose its filters, a search that needs the
+model's Q&A setting, on by default for Import and Direct Lake, which
+retires in December 2026 for a replacement Learn has yet to name
+(semantic model best practices, read 2026-10-16). The DAX itself
+differs: in one client estate the standard runtime's returned empty
+months the preview runtime's left out, and one instruction line helped
+on one runtime and hurt on the other
+([references/configuration-layers.md § 1](references/configuration-layers.md#1-agent-instructions-top-level)).
+Re-read the DAX after a switch.
+
+One well-chosen example query can outperform paragraphs of prose instructions. Microsoft's recommended markdown structure for each layer, with worked examples: [references/configuration-layers.md](references/configuration-layers.md). A complete end-to-end configuration for one agent: [assets/example-retail-agent.md](assets/example-retail-agent.md).
+
+To author the layers conversationally rather than by hand, the **Creator Agent** ("Build agent with AI", preview) generates and validates all four — but only on **SQL and Eventhouse sources**, and it refuses to run if any unsupported source is attached: [references/creator-agent.md](references/creator-agent.md).
+
+## Consumption surfaces
+
+Beyond in-product chat (GA), the MCP endpoint and Copilot Studio's tool path are GA; Microsoft Copilot's page carries no label, and every other surviving surface is preview:
+
+| Surface | Notes |
+|---|---|
+| **Microsoft Copilot (Agent Store)** (no label, 2026-11-09) | **Publish to Agent Store** at publish time. Needs F2+/P1+, a Microsoft Copilot licence or Office 365 commercial subscription plus per-user licences, and the **cross-geo processing and storing for AI** tenant settings. Answering from Power BI content in M365 Copilot Chat is GA, but a data agent answers there only through an explicitly published Microsoft 365 agent |
+| **MCP server endpoint** (GA) | The replacement for the retired Assistants API. Exactly **one** MCP tool per agent. A long-running question returns an MCP task (`tasks/get`, `tasks/cancel`) to clients that support the `io.modelcontextprotocol/tasks` extension; other clients see no change |
+| **Copilot Studio tool** (GA) | Add **Fabric IQ Data MCP** to a Copilot Studio agent on the GitHub Copilot harness, pick each published data agent, and set its auth mode, User or Maker |
+| **Copilot Studio connected agent / Azure AI Foundry** (preview) | On-Behalf-Of passthrough. Foundry now connects through MCP |
+| ~~Copilot in Power BI~~ | **Retired 2026-08-26**; its Learn page is gone (2026-11-09) |
+
+The MCP endpoint, its token, and the conditions that decide whether an integration works, publish first among them: [references/data-agent-mcp.md](references/data-agent-mcp.md). Every other surface's prerequisites, sharing model and compliance caveat: [references/consumption-surfaces.md](references/consumption-surfaces.md).
+
+## Evaluating an agent
+
+Two routes judge an agent's replies to a set of questions. Learn's
+`evaluate_data_agent` (preview) runs in a notebook against literal
+expected answers, with an LLM critic, and keeps its results in a
+lakehouse: it suits a scheduled regression. This skill's
+`data-agent-eval.py` runs from a workstation, computes each expected
+answer from the semantic model by DAX at ask time, grades the reply's
+figures by rule and shows the agent's DAX beside it: it suits the loop
+between instruction edits. Side by side, with the SDK's options:
+[references/evaluation.md](references/evaluation.md).
+
+## Governance and intent precedence
+
+When the agent decides what to do, layers override each other in this order (highest precedence first):
+
+1. **Organizational intent** — tenant policies, Purview DLP, access restriction policies, compliance requirements. Can't be overridden.
+2. **Role-based intent** — workspace governance, permission boundaries, RLS/CLS on semantic models.
+3. **Developer intent** — your agent instructions, data source instructions, example queries.
+4. **User intent** — the question in the chat.
+
+If your developer instructions conflict with a higher layer (e.g., tell the agent to access a restricted column), the agent refuses or redirects. Don't try to write around policy in the instructions blob.
+
+## Common pitfalls
+
+- Stuffing everything into the top-level agent blob and leaving the data source blobs empty. The layers exist for a reason.
+- Data source descriptions that are too generic. "Contains sales data" doesn't help routing.
+- Missing example queries. Without them, the agent guesses at query structure.
+- Adding example queries to a Power BI semantic model data source — they have no effect.
+- Agent instructions for a semantic model source that list only its measures, or leave relative dates to the agent. Learn says they never reach the DAX tool, yet they shape the question it receives: [references/configuration-layers.md § 1](references/configuration-layers.md#1-agent-instructions-top-level).
+- Instructions referencing deprecated tables, columns, or measures. Stale instructions are worse than none — they actively mislead the agent.
+- Duplicating rules across agent, data source, and semantic model layers. Pick the most specific layer and leave the others clean.
+- Treating the agent-level "Response guidelines" as a place for business logic. It's for conversational behavior — tone, clarification flows, disclaimers.
+- Non-English content in instructions or example queries. Data agents don't currently support non-English languages; authoring in other languages degrades quality.
+
+The positive-form counterpart — the authoring loop, regression question banks, deployment pipelines, operational oversight — is in [references/authoring-workflow.md](references/authoring-workflow.md).
+
+## Limitations to be aware of
+
+Restating the caps from above: **read-only**, **5 data sources** per agent, **100 example queries** per source, **none on semantic model sources**. Beyond those:
+
+- **Structured data only**: no `.pdf`, `.docx`, `.txt`. For lakehouse sources, only tables are queried — standalone files under `Files/` are not read unless exposed as tables.
+- **Response row/column cap**: agent responses are capped at 25 rows and 25 columns to keep chat output concise. Previous chat history can influence the cap on follow-ups — start a new chat if you need a clean context. What's New announces a 1,000-row preview, but its link lands on the visuals page and the concept page still says 25: treat 1,000 as unconfirmed (2026-10-06).
+- **Visuals** (GA): answers come with charts by default, steered or switched off through agent instructions. A chart takes at most **200 rows** (the rest are truncated), its styling is fixed, and it renders only in Fabric's own data agent experience — not the SDK, M365 Copilot, Teams or Foundry.
+- **English only**: no current non-English language support.
+- **LLM is fixed**: you can't change the underlying LLM. The runtime selector (standard or preview) changes the orchestration and query-generation tools, not the model: model upgrades land on both runtimes alike.
+- **Same-region requirement**: a data source's workspace capacity must be in the same region as the data agent's workspace capacity. Cross-region queries fail.
+- **Conversation history may not persist** across service updates, infrastructure changes, or model upgrades.
+- **Purview-sensitive data**: responses may be truncated or blocked if Purview DLP or access restriction policies apply.
+- **Semantic model access**: users interacting via the agent need Read permission on the model; Build and Workspace Member roles are not required. RLS/CLS still apply.
+
+## Reference
+
+Detail lives in [references/](references/) — each section above links the file that carries its full version.
+
+- Microsoft Learn: [Fabric data agent concept](https://learn.microsoft.com/en-us/fabric/data-science/concept-data-agent)
+- Microsoft Learn: [Data agent configurations](https://learn.microsoft.com/en-us/fabric/data-science/data-agent-configurations)
+- Microsoft Learn: [Data agent tenant settings](https://learn.microsoft.com/en-us/fabric/data-science/data-agent-tenant-settings)
+- Comprehensive MS Learn link bundle (create / consume / Foundry / governance): [references/REFERENCE.md](references/REFERENCE.md)

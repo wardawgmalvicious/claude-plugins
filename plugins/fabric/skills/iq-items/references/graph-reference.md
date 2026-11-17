@@ -1,0 +1,386 @@
+# Fabric Graph (GraphModel) — Reference
+
+All content grounded in Microsoft Learn (`learn.microsoft.com/fabric/graph/*` and the
+Fabric REST item-definition docs). No speculative content.
+
+## Table of contents
+
+- [1. What it is](#1-what-it-is)
+- [2. GQL graph-type DDL — full schema example](#2-gql-graph-type-ddl--full-schema-example)
+- [3. GQL standard conformance (supported vs not)](#3-gql-standard-conformance-supported-vs-not)
+- [4. GQL Query API — request/response contract](#4-gql-query-api--requestresponse-contract)
+- [5. Value types & JSON encoding](#5-value-types--json-encoding)
+- [6. Graph Model item-definition JSON (all four parts)](#6-graph-model-item-definition-json-all-four-parts)
+- [7. Pricing / capacity / regions](#7-pricing--capacity--regions)
+- [8. Source links](#8-source-links)
+
+---
+
+## 1. What it is
+
+A scale-out **labeled property graph** over **OneLake** Delta tables. Nodes (vertices) and
+edges (relationships) each have: an internal ID, one or more **labels** (edges have exactly
+**one** label), and properties (name–value pairs). Edges are **directed**; undirected edges
+are not supported. Every edge connects two valid nodes that exist in the same graph.
+
+**Workflow (How graph works):** Graph modeling (define node types, edge types, table
+mappings) → Save (ingest from lakehouse tables, build read-optimized queryable graph) →
+Query authoring (Query Builder visual UI **or** Code Editor GQL) → Query execution
+(GQL / NL2GQL preview / REST) → Results (visual diagrams / tabular / JSON).
+
+Roles: data engineers model & create; analysts run low/no-code queries; business users
+explore visually or via natural language; developers use the REST GQL API + Data Agent.
+
+---
+
+## 2. GQL graph-type DDL — full schema example
+
+The graph **type** is the schema. `CREATE GRAPH` with a *closed* graph type is supported;
+GQL graph **schema management** (`GC01`) and `DROP GRAPH` are **not** — drop via UI/REST.
+
+Operators to know:
+
+- `::` — type operator (`id :: UINT64 NOT NULL`)
+- `=>` — node type definition / inheritance (`(:City => :Place)`)
+- `+=` — extend an inherited type with extra properties
+- `ABSTRACT` — abstract base type (cannot be instantiated directly)
+- `<:` — reference to an abstract type in an edge endpoint
+- `CONSTRAINT <name> FOR (n:T) REQUIRE (n.id) IS KEY` — node key constraint
+
+Complete social-network graph type (from MS Learn `gql-schema-example`):
+
+```gql
+(:TagClass => { id :: UINT64 NOT NULL, name :: STRING, url :: STRING }),
+CONSTRAINT tag_class_pk FOR (n:TagClass) REQUIRE (n.id) IS KEY,
+(:TagClass)-[:isSubclassOf]->(:TagClass),
+
+(:Tag => { id :: UINT64 NOT NULL, name :: STRING, url :: STRING }),
+(:Tag)-[:hasType]->(:TagClass),
+CONSTRAINT tag_pk FOR (n:Tag) REQUIRE (n.id) IS KEY,
+
+ABSTRACT (:Place => { id :: UINT64 NOT NULL, name :: STRING, url :: STRING }),
+(:City => :Place),
+(:Country => :Place),
+(:Continent => :Place),
+CONSTRAINT place_pk FOR (n:Place) REQUIRE (n.id) IS KEY,
+(:City)-[:isPartOf]->(:Country),
+(:Country)-[:isPartOf]->(:Continent),
+
+ABSTRACT (:Organization => { id :: UINT64 NOT NULL, name :: STRING, url :: STRING }),
+(:University => :Organization),
+(:Company => :Organization),
+CONSTRAINT organization_pk FOR (n:Organization) REQUIRE (n.id) IS KEY,
+(:University)-[:isLocatedIn]->(:City),
+(:Company)-[:isLocatedIn]->(:Country),
+
+(:Person => {
+    id :: UINT64 NOT NULL,
+    creationDate :: ZONED DATETIME,
+    firstName :: STRING,
+    lastName :: STRING,
+    gender :: STRING,
+    birthday :: UINT64,
+    browserUsed :: STRING,
+    locationIP :: STRING
+}),
+CONSTRAINT person_pk FOR (n:Person) REQUIRE (n.id) IS KEY,
+(:Person)-[:hasInterest]->(:Tag),
+(:Person)-[:isLocatedIn]->(:City),
+(:Person)-[:studyAt { classYear :: UINT64 }]->(:University),
+(:Person)-[:workAt { workFrom :: UINT64 }]->(:Company),
+(:Person)-[:knows { creationDate :: ZONED DATETIME }]->(:Person),
+
+(:Forum => { id :: UINT64 NOT NULL, creationDate :: ZONED DATETIME, title :: STRING }),
+CONSTRAINT forum_pk FOR (n:Forum) REQUIRE (n.id) IS KEY,
+(:Forum)-[:hasTag]->(:Tag),
+(:Forum)-[:hasMember { creationDate :: ZONED DATETIME, joinDate :: UINT64 }]->(:Person),
+(:Forum)-[:hasModerator]->(:Person),
+
+ABSTRACT (:Message => {
+    id :: UINT64 NOT NULL,
+    creationDate :: ZONED DATETIME,
+    browserUsed :: STRING,
+    locationIP :: STRING,
+    content :: STRING,
+    length :: UINT64
+}),
+CONSTRAINT message_pk FOR (n:Message) REQUIRE (n.id) IS KEY,
+
+(:Post => :Message += { language :: STRING, imageFile :: STRING }),
+(:Person)-[:likes { creationDate :: ZONED DATETIME }]->(:Post),
+(:Post)-[:hasCreator]->(:Person),
+(:Post)-[:isLocatedIn]->(:Country),
+(:Forum)-[:containerOf]->(:Post),
+
+(:Comment => :Message),
+(:Person)-[:likes { creationDate :: ZONED DATETIME }]->(:Comment),
+(:Comment)-[:hasCreator]->(:Person),
+(:Comment)-[:isLocatedIn]->(:Country),
+(:Comment)-[:replyOf]->(<:Message),
+(:Person)-[:likes { creationDate :: ZONED DATETIME }]->(<:Message),
+(<:Message)-[:hasCreator]->(:Person),
+(<:Message)-[:isLocatedIn]->(:Country),
+(<:Message)-[:hasTag]->(:Tag)
+```
+
+### Example queries
+
+```gql
+-- count nodes of a label
+MATCH (n:`Order`) RETURN count(n) AS num_orders
+
+-- pattern + filter + concat
+MATCH (person:Person)-[:knows]-(friend:Person)
+WHERE person.birthday < 19990101 AND friend.birthday < 19990101
+RETURN person.firstName || ' ' || person.lastName AS person_name,
+       friend.firstName || ' ' || friend.lastName AS friend_name
+
+-- multi-hop traversal + order/limit
+MATCH (p:Person {firstName: "Annemarie"})-[:knows]->(friend)-[:likes]->(c:Comment)
+RETURN c ORDER BY c.creationDate LIMIT 100
+
+-- shortest path, eligibility inline: only edges since 2020 can form the path
+MATCH p = ANY SHORTEST
+  (src:Person WHERE src.firstName = 'Alice')
+  -[connection:knows
+    WHERE connection.creationDate >= ZONED_DATETIME('2020-01-01T00:00:00Z')]->{1,4}
+  (dst:Person WHERE dst.firstName = 'Bob')
+RETURN p
+
+-- the same condition as a post-filter: it drops the picked shortest path and
+-- never tries a longer one; outside the quantified pattern, the edge variable
+-- is the list of the path's edges
+MATCH p = ANY SHORTEST
+  (src:Person WHERE src.firstName = 'Alice')
+  -[connections:knows]->{1,4}
+  (dst:Person WHERE dst.firstName = 'Bob')
+FILTER ALL(connection IN connections
+           WHERE connection.creationDate >= ZONED_DATETIME('2020-01-01T00:00:00Z'))
+RETURN p
+```
+
+The two path queries are Learn's
+([graph patterns](https://learn.microsoft.com/fabric/graph/gql-graph-patterns#place-predicates-before-or-after-path-selection),
+read 2026-10-12). Path search prefixes, path modes and quantifiers are in
+[graph.md](graph.md), and their conformance rows below.
+
+---
+
+## 3. GQL standard conformance (supported vs not)
+
+Selected rows from MS Learn `gql-conformance`. Useful to avoid generating unsupported syntax.
+Every row was re-read against the live page on 2026-10-31.
+**Where the Fabric Updates Blog and Learn disagree, Learn wins**: the
+blog roundup of 2026-10-20 has headings for quantified edge patterns and
+`IS NORMALIZED`, which Learn marks unsupported (G036, 19.7 below).
+
+| Feature ID | Feature | Supported | Notes |
+| --- | --- | --- | --- |
+| G002 | Different-edges match mode | Yes | `DIFFERENT EDGES` or `DIFFERENT RELATIONSHIPS`: edges unique across the whole graph pattern. |
+| G005 | Path search prefix in a path pattern | Yes | `ALL` (the default) and `ANY SHORTEST`. |
+| G010–G013 | Path modes `WALK`, `TRAIL`, `SIMPLE`, `ACYCLIC` | Yes | `WALK` is the default. |
+| G016 | Any path search (`ANY`) | **No** | |
+| G017 | All shortest path search (`ALL SHORTEST`) | **No** | |
+| G018 | Any shortest path search (`ANY SHORTEST`) | **Yes** | One shortest path per source-destination pair from each input row; ties aren't deterministic. |
+| G019/G020 | Counted shortest path and group search (`SHORTEST k`) | **No** | |
+| G035 | Quantified paths | Yes | Bounded `{m,n}` variable-length patterns. |
+| G036 | Quantified edges | **No** | "Only quantified paths are supported." The blog roundup's "quantified edge patterns" heading is not this row: write a quantified path. |
+| G061 | Unbounded quantifiers | **Partial** | `{m,}`, `*`, `+` with `TRAIL`, `SIMPLE`, `ACYCLIC`. Unbounded `ALL WALK` is rejected. |
+| G100 | `ELEMENT_ID` function | Yes | Returns a node's or edge's opaque identifier as a string. |
+| GF04 | Path functions `elements()`, `path_length()`, `nodes()`, `edges()` | Yes | |
+| GE03, GQ09 | `LET` | Yes | |
+| GQ10, GQ11, GQ24 | `FOR`, `WITH ORDINALITY`, `WITH OFFSET` | Yes | `ORDINALITY` is one-based, `OFFSET` zero-based. |
+| GE09 | Horizontal aggregation | Yes | Over group-list variables from variable-length patterns. |
+| 20.9 | Aggregates `COUNT`, `SUM`, `AVG`, `MIN`, `MAX` | Yes | `DISTINCT` and `ALL`; aggregate `FILTER (WHERE ...)` with an optional `LIMIT`. Also `COLLECT_LIST`, `COLLECT_ONE`, `COLLECT_ELEMENTS`. |
+| GF10 | General set functions | **Partial** | `COLLECT_*` yes; no `STDDEV_POP`, `STDDEV_SAMP`, `PRODUCT`. |
+| GP01 | Inline `CALL { ... }`, `OPTIONAL CALL { ... }` | **Partial** | Variables import implicitly from enclosing scopes; nestable. **No explicit import list** such as `CALL (p) { ... }`. Named procedure calls (GP02–GP18) aren't supported. |
+| 19.4 | `EXISTS` predicate | **Partial** | Procedure-form subqueries only, **not** the graph-pattern-only form. |
+| GQ22 | Multiple `MATCH` in `EXISTS` | Yes | |
+| GA05 | `CAST(value AS type)` | **Partial** | No Unicode type casting. |
+| 20.22 | Numeric functions | **Partial** | `ABS`, `POWER`, trigonometric, `RANGE`, `CHAR_LENGTH`; no ceiling, floor, log, modulus, exp, sqrt. |
+| 20.24 | String functions | **Partial** | `UPPER`, `LOWER`, `TRIM`, `NORMALIZE` (NFC, NFD); no `LEFT`, `RIGHT`. |
+| 19.7 | `IS [NOT] NORMALIZED` predicate | **No** | The `NORMALIZE()` function is supported; the predicate is not, whatever the blog roundup's heading says. |
+| 20.7 | `CASE` expression | **Partial** | Simple `CASE`, `COALESCE`, `NULLIF`; **no searched `CASE WHEN`**. |
+| 15.4 | Conditional statement | Yes | `WHEN`/`THEN`/`ELSE` routes rows to the first matching branch; it is not a searched `CASE`. |
+| — | Extensions | Yes | `CASEFOLD`, `STRING_JOIN`, `MSFT.REGEXP_*`, and the `ALL`/`ANY`/`NONE`/`SINGLE` list predicates. Standard `REGEXP_CONTAINS` is unsupported. |
+| GB01 | Long identifiers | No | |
+| GB02 | `--` line comments | Yes | |
+| GB03 | `//` line comments, `/* */` block comments | Yes | |
+| GC01 | Graph schema management | No | |
+| GC04 | Graph management (`CREATE GRAPH`) | **Partial** | `CREATE GRAPH` with a closed graph type supported. **No `DROP GRAPH`** — use Fabric UI / REST API. |
+| GD01 | Updatable graphs | **No** | No GQL `INSERT`/`SET`/`DELETE`. Load/refresh via data management. |
+| GD02 | Graph label set changes | No | |
+| GD03/GD04 | `DELETE` statement variants | No | |
+| — | Set operations `UNION ALL`, `UNION DISTINCT` | **Yes** | Also inside `NEXT` stages. |
+| — | Set operations `EXCEPT ALL/DISTINCT`, `INTERSECT ALL/DISTINCT`, `OTHERWISE` | **No** | Not yet supported. |
+| — | `NEXT` statement chaining | **Yes** | Composes query stages, including stages that contain `UNION`. |
+
+Implication: treat GQL as **query-only** against an already-ingested graph. All structural
+and data changes go through the model editor (save = ingest) or the REST item-definition API.
+Full in-progress conformance list → `gql-conformance` / [limitations](https://learn.microsoft.com/fabric/graph/limitations).
+
+---
+
+## 4. GQL Query API — request/response contract
+
+**Endpoint (single RPC over HTTP POST), in beta:**
+
+```
+POST https://api.fabric.microsoft.com/v1/workspaces/{workspaceId}/GraphModels/{GraphModelId}/executeQuery?beta=true
+```
+
+The Query API is in beta and not recommended for production. `beta=true` is required; the older
+`preview=true` remains supported for backward compatibility, but use `beta=true` in new
+integrations. The one optional parameter, `continuationToken`, is for continuation polling below.
+
+Headers: `Content-Type: application/json`, `Accept: application/json`,
+`Authorization: Bearer <token>` (audience `https://api.fabric.microsoft.com`).
+
+**Discovery:**
+
+```bash
+# workspaces
+az rest --method get --resource "https://api.fabric.microsoft.com" \
+  --url "https://api.fabric.microsoft.com/v1/workspaces"
+# graphs in a workspace (filter with JMESPath via --query, table via -o table)
+az rest --method get --resource "https://api.fabric.microsoft.com" \
+  --url "https://api.fabric.microsoft.com/v1/workspaces/{workspaceId}/GraphModels"
+```
+
+**Request body:** `{ "query": "MATCH (n) RETURN n LIMIT 100" }` (only field: `query`, string, required).
+
+**Response (HTTP 200):**
+
+```json
+{
+  "status": {
+    "code": "00000",
+    "description": "note: successful completion",
+    "diagnostics": { "OPERATION": "", "OPERATION_CODE": "0", "CURRENT_SCHEMA": "/" }
+  },
+  "result": { "kind": "TABLE", "columns": [ ... ], "data": [ ... ] }
+}
+```
+
+**Status codes** in `status.code` are five-character public API codes:
+
+| Code | Meaning |
+| --- | --- |
+| `00000` | Success with at least one row |
+| `00001` | Omitted result — reserved for future DDL/DML; current queries always return a table |
+| `01000` | Warning or informational condition |
+| `02000` | No rows currently available; with `result.nextPage`, the query is still running |
+| `42000` | Syntax, access-rule or other user-correctable query error |
+| `50000` | System or unclassified error |
+
+- The engine's canonical five-character GQLSTATUS is kept in
+  `status.diagnostics._graphaneGqlStatus`: numeric overflow (`22003`) and division by zero
+  (`22012`) both surface as `42000`. Use it to tell specific conditions apart, and never parse
+  `description`, whose text varies. Each additional status and nested cause carries its own.
+
+- **Always check `status.code`** — do NOT infer success from HTTP 200. Transport errors
+  (network/HTTP) use real 4xx/5xx; **application errors return HTTP 200** with the error in
+  `status`. `status.cause` chains an underlying cause; `additionalStatuses` may list more.
+- Diagnostic keys starting with `_` (e.g. `_errorLocation`) are graph-specific and their
+  values are JSON-encoded GQL values.
+
+**Continuation polling.** A query that doesn't finish within the request returns HTTP 200 with
+`status.code` `02000`, an empty table and `result.nextPage`. Re-send the same body to
+`…/executeQuery?beta=true&continuationToken=<token>`, with the opaque token percent-encoded
+exactly once (RFC 3986), until `nextPage` is absent. Execution can run 20 minutes in total from
+the first request, continuations included; past that the API returns HTTP 408 `QueryTimeout`.
+
+**Truncation.** A response whose internal binary form exceeds 64 MB is truncated: the rows that
+fit come back, with a `01000` status in `additionalStatuses` (canonical `01M11`), and no
+`nextPage` covers the omitted rows. Narrow with filters, projections or `LIMIT` and rerun.
+
+**Result kinds** (discriminated union on `result.kind`):
+- `TABLE` → `columns[]` (`name`, `gqlType`, `jsonType`), `isOrdered`, `isDistinct`, `data[]`.
+- `NOTHING` → operation returned no data (e.g. catalog/data updates).
+
+---
+
+## 5. Value types & JSON encoding
+
+Values follow a discriminated-union pattern `{ "gqlType": "TYPE", "value": <v> }`. In TABLE
+results this is optimized: for **known-typed columns** only the raw value is serialized; for
+`ANY` columns the full `{gqlType,value}` object appears per cell.
+
+| Category | GQL types / notes |
+| --- | --- |
+| Boolean | `BOOL` → native JSON boolean |
+| String | `STRING` → UTF-8 string |
+| Integer | `INT64`, `UINT64` — **serialized as strings** when outside JS safe range (±9,007,199,254,740,991), e.g. `{"gqlType":"INT64","value":"9223372036854775807"}` |
+| Float | `FLOAT64` (IEEE 754). Special values arrive as **strings**: `"Inf"`, `"-Inf"`, `"NaN"`, `"-0"` |
+| Temporal | `ZONED DATETIME` ISO-8601, e.g. `2023-12-25T14:30:00+02:00` |
+| Graph refs | `NODE` (`"node-123"`), `EDGE` (`"edge_abc#def"`) |
+| Lists | `LIST<INT64>` (nullable elements), `LIST<ANY>` (each element carries type), `LIST<NULL>`, `LIST<NOTHING>` (empty) |
+| Paths | `PATH` → list of node/edge refs: `["node1","edge1","node2"]` |
+
+Client handling: expect large ints / floats / specials as strings; JSON `null` = GQL null.
+
+---
+
+## 6. Graph Model item-definition JSON (all four parts)
+
+The parts (`dataSources`, `graphDefinition`, `graphType`,
+`stylingConfiguration`, all required, and `graphSettings` live, which
+Learn does not list), the alias join between them, the
+filter forms and the REST calls past the generic set are
+[graph-model-api.md](graph-model-api.md)'s. A JSON example of each part
+is on Learn's
+[Graph Model definition](https://learn.microsoft.com/rest/api/fabric/articles/item-management/definitions/graph-model-definition)
+page.
+
+---
+
+## 7. Pricing / capacity / regions
+
+- No separate license/SKU — consumes existing Fabric capacity (reserved or PAYG).
+- Compute billed on **CPU uptime: 10 CU-seconds per second**, each uptime session rounded up
+  to whole minutes. Auto-shuts down when not in use.
+- Storage: minimum **100 GB** provisioned, billed at the **OneLake Cache** rate.
+- Metrics App line items: *Graph general operations* (meter: Graph capacity usage CU) and
+  *Graph cache storage* (meter: OneLake Cache).
+- Available in 30+ regions (see overview page for the current list).
+
+### Capacity & query limits (from `limitations`)
+
+| Limit | Value |
+| --- | --- |
+| Graph models per workspace | **no cap documented** (read 2026-10-12) |
+| Graph size | ~**2 billion** elements (nodes + edges); effective capacity varies with graph structure and property payload size; contact **Microsoft Support** beyond it (read 2026-10-12) |
+| Data sources | **OneLake and mirrored databases** (read 2026-10-12) |
+| Variable-length pattern hops | up to **8** in the **Explore** UI's path builder; GQL in the code editor doesn't share the limit |
+| Query timeout | **20 minutes** |
+| Graph load or refresh time | **no fixed timeout**: a large graph can take several hours; open a support request if one runs past **24 hours**. The 20-minute limit is the Query API's alone (limitations and graph performance pages, read 2026-10-12) |
+| Response size | **truncated above 64 MB**; intermediate results capped at **128 MB** (read 2026-10-12) |
+| `STRING` max size | **65,534 bytes**, not characters (runtime value types, uint16 on-disk length); the property-type table gives 65,535 bytes (read 2026-10-12) |
+| `LIST` and `PATH` max length | **65,534** elements (uint16 on-disk length) (read 2026-10-12) |
+| Export / Power BI direct connect | **not supported** |
+| Returning `ANY` / `RECORD` types | **supported**: `RECORD` is listed as a supported runtime value type, and the Query API documents `ANY` result columns, each cell a full `{gqlType, value}` (§5) (read 2026-10-12) |
+| Identifiers | can't start with underscore |
+
+---
+
+## 8. Source links
+
+- Overview — https://learn.microsoft.com/fabric/graph/overview
+- How graph works — https://learn.microsoft.com/fabric/graph/how-graph-works
+- Graph data models (labeled property graph) — https://learn.microsoft.com/fabric/graph/graph-data-models
+- Design a graph schema — https://learn.microsoft.com/fabric/graph/design-graph-schema
+- GQL language guide — https://learn.microsoft.com/fabric/graph/gql-language-guide
+- GQL graph patterns (path search, path modes, quantifiers) — https://learn.microsoft.com/fabric/graph/gql-graph-patterns
+- GQL graph types — https://learn.microsoft.com/fabric/graph/gql-graph-types
+- GQL schema example — https://learn.microsoft.com/fabric/graph/gql-schema-example
+- GQL conformance — https://learn.microsoft.com/fabric/graph/gql-conformance
+- Current limitations — https://learn.microsoft.com/fabric/graph/limitations
+- GQL Query API reference — https://learn.microsoft.com/fabric/graph/gql-query-api
+- GQL status codes — https://learn.microsoft.com/fabric/graph/gql-reference-status-codes
+- Quickstart (create first graph) — https://learn.microsoft.com/fabric/graph/quickstart
+- Tutorial: query with code editor (GQL) — https://learn.microsoft.com/fabric/graph/tutorial-query-code-editor
+- Tutorial: query builder — https://learn.microsoft.com/fabric/graph/tutorial-query-builder
+- Manage and refresh data — https://learn.microsoft.com/fabric/graph/manage-data
+- Graph Model definition (REST) — https://learn.microsoft.com/rest/api/fabric/articles/item-management/definitions/graph-model-definition
+- GraphModel REST items API — https://learn.microsoft.com/rest/api/fabric/graphmodel/items
+- Data Agent graph source (NL2GQL, preview) — https://learn.microsoft.com/fabric/data-science/data-agent-add-datasources

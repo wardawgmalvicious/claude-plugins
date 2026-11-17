@@ -1,0 +1,365 @@
+---
+name: catalog-governance
+description: "Audit and remediate Microsoft Fabric governance posture through the REST APIs — what the OneLake catalog Govern tab reports, done by API. Covers domains and subdomains, workspace-to-domain and workspace-to-capacity assignment, domain roles, sensitivity-label coverage and bulkSetLabels, tags, description and endorsement coverage, item ownership, and which Fabric policy set is active and what it allows (preview), split by caller tier: Fabric administrator (/v1/admin/*, scanner API) versus data owner (Core API plus workspace, domain or capacity roles). Use when asked to audit governance, find unlabeled, undescribed or unendorsed items or workspaces with no domain, bulk-assign workspaces to a domain, change labels in bulk, or say who can fix a finding. Gates every irreversible write and names the fixes that have no API. For catalog search use rest-api (fab find); for workspace roles and OneLake security use security."
+# model: inherit  # any model: value blocks Copilot slash invocation
+# effort: max   # unset = inherit session effort; there is no 'effort: inherit'
+disable-model-invocation: false
+---
+
+# Governing the Fabric estate
+
+The OneLake catalog's **Govern** tab reports a tenant's governance
+posture across three areas — *Manage your data estate*, *Protect, secure
+& comply*, and *Discover, trust, and reuse*. It also hosts governance
+experiences, **Policies** (preview) among them (§3, *Policy sets*),
+and administrative ones
+— capacities, workspaces, tenant settings, Azure connections, workloads
+and more — each shown as far as the viewer's admin role allows (Learn,
+2026-10-06). Govern itself went generally available in September 2026,
+rolling out by region, with the Admin portal standing in where it has
+not arrived; What's New keeps its February 2025 preview row too (Learn,
+2026-10-13). This skill does the same work through the REST APIs, where
+it can be counted, scheduled and fixed in bulk.
+
+The output is **findings**, not a rewrite. Do not write to a tenant
+unless asked separately, and then only through §6.
+
+Four neighbours own the adjacent ground:
+
+- **Catalog search** — finding an item across workspaces — is the
+  Explore tab. That is `fab find` and `POST /v1/catalog/search`, both
+  `rest-api`'s.
+- **Access** — workspace roles, item permissions, OneLake security, and
+  the shape of the `sensitivityLabel` field including resolving its GUID
+  through Graph — is `security`. This skill measures label
+  *coverage*; that one explains what a label does.
+- **REST mechanics** — long-running operations, `continuationToken`
+  pagination, `Retry-After` and 429 handling — is `rest-api`.
+- **Curating item metadata**, and Microsoft's own take on this ground,
+  is the Govern Skills the Fabric Updates Blog announced on 2026-10-28,
+  in [microsoft/skills-for-fabric](https://github.com/microsoft/skills-for-fabric)
+  (MIT). There `onelake-catalog-cli` (read at v0.3.20, 2026-11-02) runs
+  the same tier-by-action grid as this skill, and adds a curate mode:
+  an owner's item descriptions, display names and tags, and table and
+  column descriptions through the OneLake table API. This skill keeps
+  its own ground and vendors none of it.
+
+Everything below was drilled from Microsoft Learn on 2026-09-11, bar
+the *Policy sets* material (2026-11-02), and
+**none of it has been exercised against a tenant from this machine**.
+Treat it as first-party documentation, not as verified practice.
+Past it, its `references/`, then Learn, by `microsoft-learn-mcp`
+(`microsoft_docs_search`, then `microsoft_docs_fetch`), or with no server, `curl -sL -H 'Accept: text/markdown' <page URL>` (undocumented, read 2026-11-07). A live page
+that contradicts a line here wins: say so, act on the page, and route
+the fix by `capture-learning`, bar a dated measured line that names the
+page it overrules and the call that measured it, which a page changed since
+its date sends back to re-measure. An observed claim is cited or marked
+pending a doc check, and stands, marked observed, only where no page covers
+it.
+
+## 1. Establish the caller's tier before anything else
+
+**Tier is the API surface the caller can reach, not their job title.**
+Getting this wrong wastes a whole audit: the endpoints that answer
+"across the tenant" refuse everyone who is not a Fabric administrator,
+and no amount of retrying changes that.
+
+| Tier | Surface | Scope |
+| --- | --- | --- |
+| **Fabric administrator** | `/v1/admin/*`, Power BI admin (scanner, activity events) | The whole tenant |
+| **Data owner** | Core API (`/v1/workspaces`, `/v1/items`, `/v1/domains`), Power BI per-item | Only objects the caller holds a role on |
+
+A **domain admin, capacity admin or workspace admin who is not also a
+Fabric administrator is a data owner here.** The admin endpoints say so
+in as many words — "The caller must be a Fabric administrator" — and
+answer `InsufficientPrivileges`, "The caller doesn't have permissions to
+call the API", to everyone else.
+
+**A 403 is the answer, not an obstacle.** Report the tier boundary and
+route the finding to someone who can act (§7). Never go around it by
+trying the same read through another surface.
+
+### The domain-admin gap — say this up front
+
+A domain admin who is not a Fabric administrator **has no API that
+returns their domain's posture.** `GET /v1/admin/domains/{id}/workspaces`
+requires the Fabric administrator role, and the Core API has no
+equivalent: `GET /v1/domains` lists domains with only `id`,
+`displayName`, `description` and `parentDomainId` — no membership, and
+not even the `defaultLabelId` the admin version carries.
+
+So a data-owner audit covers **workspaces the caller can reach**, never
+"my whole domain". State that limitation before running it, rather than
+producing a number that quietly means something narrower than asked.
+
+### Service principals are a separate gate
+
+- Admin reads and most admin writes accept a service principal or
+  managed identity, but only once a tenant admin enables it. There are
+  **two independent switches** — one for read-only admin APIs, one for
+  the admin APIs used for updates — each limited to a named security
+  group.
+- **Bulk label writes reject them outright.** `bulkSetLabels` and
+  `bulkRemoveLabels` support `User` only; a service principal cannot set
+  a sensitivity label at all (§6).
+- Item ownership takeover likewise "doesn't cover ownership takeover as
+  a service principal".
+
+### `fab` reaches the admin tier, not the data-owner one
+
+The Fabric CLI's domain verbs — `ls`, `get`, `mkdir`, `rm`, `set`,
+`assign`, `unassign` against `.domains` — and **every** `fab label`
+command require tenant-level Fabric Administrator privileges, per the
+CLI's own docs. `fab label` also reads label names from a local JSON
+file registered with `config set local_definition_labels`.
+
+A data owner assigning their own workspace to a domain therefore cannot
+use `fab assign .domains/...`, even though the Core API would allow it.
+Use the REST passthrough instead:
+
+```bash
+fab api -X post "workspaces/$WS_ID/assignToDomain" -i '{"domainId":"<id>"}'
+```
+
+See `rest-api` for `fab` syntax and token audiences: its
+`references/cli.md` and `references/auth.md`.
+
+## 2. Audit before you remediate
+
+Establish the current state first, in the caller's own tier. An audit
+mode does not write, even when asked mid-run: if the answer to a finding
+is a write, say so, switch deliberately, and apply §6's gate. Do not
+improvise a write inside an audit.
+
+## 3. What to measure, and where it actually comes from
+
+The trap in this whole skill, stated once:
+
+**`GET /v1/admin/items` carries no sensitivity label, no endorsement and
+no domain.** Its item object is `id`, `type`, `name`, `description`,
+`state`, `lastUpdatedDate`, `workspaceId`, `capacityId`,
+`creatorPrincipal`, `defaultIdentity`, `tags` and `folderId` — nothing
+else. An "unlabeled items" count taken from it is not a finding; it is
+the API's silence. Labels and endorsement come from the **Power BI
+scanner API**, or per item from Core `sensitivityLabel`.
+
+| Area | Check | Fabric admin source | Data owner source |
+| --- | --- | --- | --- |
+| Estate | Workspaces with no domain | Admin List Workspaces — `domainId` omitted when unassigned | Core List Workspaces (`?roles=Admin`) — `domainId` is in the schema |
+| Estate | Domains without admins; contributor scope | Admin List Domains + role assignments | none — see the gap in §1 |
+| Estate | Capacity assignment, state, region | Admin capacities; `capacityId` per workspace | Core List Capacities — only capacities the caller administers or contributes to |
+| Protect | Unlabeled items | Scanner `sensitivityLabel.labelId` (GUID only) | Core items' `sensitivityLabel` (see `security`) |
+| Protect | DLP coverage | Govern tab report only — no API drilled | none |
+| Protect | Active policy set per scope (preview) | none found; the Core read, given a workspace role | Core List Policy Sets per workspace — see *Policy sets* below |
+| Access | Item-level sharing: who holds `Reshare`, `Write` or `ReadAll` on an item | Admin List Item Access Details, one call per item (Preview) | not drilled |
+| Trust | Missing descriptions | Admin List Items `description` | Core List Items |
+| Trust | Endorsement coverage | Scanner `endorsementDetails` — absent on dashboards, which cannot be endorsed | not drilled |
+| Trust | Tag coverage | Admin List Items `tags` | Core List Tags + per-item tags |
+| Trust | Staleness | `lastUpdatedDate`; activity events | Job instances; refresh history |
+| Trust | Ownership | `creatorPrincipal`, documented as "the item's owner" | item-level only |
+
+Per-endpoint permissions, scopes, limits and response fields are in
+[references/endpoints.md](references/endpoints.md). Read it before
+writing any call.
+
+### Policy sets (preview)
+
+**A Fabric policy set allows or blocks user actions at tenant or
+capacity scope, and only an active one does anything.** It is a
+`PolicySet` item in a workspace on a Fabric capacity, one set is active
+per scope at most, and domain and workspace scopes are not in the
+preview (Learn, 2026-11-02). The audit asks which set is active for
+each scope and what its rules allow:
+
+- **Scope and status** come from List Policy Sets, per workspace:
+  `properties.scope` (`Tenant`, or `Capacity` with its `id`) and
+  `properties.status` (`Active` or `Inactive`). It needs a Viewer role
+  there, and it is the Core API, so a Fabric administrator's finding is
+  bounded by the workspaces they hold a role in, too.
+- **Rules** come from Get Policy Set Definition, whose `policySet.json`
+  lists `policyRules`, each a `policy`, its `conditions` and an `Allow`
+  effect. It needs read *and write* on the set, and its one format,
+  `Beta`, is "not recommended for production use".
+- **Report the rules as an allow list.** Once a policy has rules, an
+  action no rule matches is **denied**, so one narrow allow rule blocks
+  everything else. Learn gives a policy with no rules its default, but
+  the portal also lets an admin set one to *Blocked*, and the
+  definition schema shows no field for that: call a rule-less policy's
+  state unconfirmed, not the default.
+- **Enforcement reaches only** the users the *Policies (preview)* tenant
+  setting applies to, the entire organization or named security groups,
+  less any exceptions. A change takes up to 15 minutes, and the Fabric
+  audit logs record each decision.
+
+Learn's policies REST page also names Activate and Deactivate Policy
+Set, Read Active Policy Sets and a Policy Evaluation API, but no
+reference page was found for any of them (2026-11-02): say so rather
+than guess a route. Activation is §6's to gate.
+
+## 4. Reporting conventions
+
+A governance statistic with no denominator is not evidence. Every
+number this skill reports carries four things.
+
+**The denominator, and what it excludes.** Admin List Items returns
+**active items only**. Bulk domain assignment "excludes *My
+workspaces*", so personal workspaces are outside any domain finding.
+The Govern tab excludes subitems such as tables, cross-tenant and guest
+scenarios, and third-party workload items from its charts, and is
+unavailable when Private Link is on.
+
+**Pagination completeness.** Follow `continuationToken` until it is
+absent or null. Admin List Items returns at most 10,000 records per page
+**in a fixed type order** — Fabric items, then Datamarts, Reports,
+Dashboards, SemanticModels, Apps, Dataflows — so a walk that stops early
+does not lose a random sample, it loses the Power BI types at the end of
+that order. Say how many pages were read.
+
+**Freshness, and which clock.** API reads are live. The Govern tab's
+admin insights come from Admin Monitoring Storage, which "refreshes
+automatically every day", so "there could be gaps between the data
+reflected and the actual state". A data owner's insights refresh every
+time the tab opens. An API count that disagrees with the portal by less
+than a day is the expected behaviour, not a bug.
+
+**Which population.** On the Govern tab a *data owner* means **items you
+own**; a data-owner API audit is usually scoped by **workspace role**.
+Those are different sets. Name the one you used.
+
+Flag **Preview** surfaces in the report: admin List Items, Get Item,
+List Item Access Details and List Workspace Access Details, and Catalog
+Search are each documented as Preview and "not recommended for
+production use".
+
+Per finding: the evidence (endpoint and count), the consequence, the
+recommended action, **which tier can perform it**, and the effort.
+
+## 5. Throttling shapes the plan
+
+Limits are per endpoint and differ by an order of magnitude, so a sweep
+has to be planned rather than fired:
+
+| Endpoint | Limit |
+| --- | --- |
+| Admin List Items, Get Item, List Item Access Details / List Workspaces / activity events / capacities | 200 per hour |
+| Admin List Domains, tenant settings, domain CRUD, role assignments, tag apply | 25 per minute |
+| Domain workspace assignment (by IDs, capacities, principals) | 10 per minute |
+| `bulkSetLabels` / `bulkRemoveLabels` | 25 per hour, 2,000 items each |
+| Scanner `postWorkspaceInfo` | 500 per hour, 16 concurrent, 1–100 workspaces per call |
+
+**List Item Access Details takes one call per item**, so 2,000 items
+take ten hours at that limit: scope an access sweep to the workspaces or
+item types at risk, never the whole tenant.
+
+On top of each, a **per-identity unified quota in a fixed 60-second
+window**; spend it all at the start of a window and nothing more
+succeeds until the next one. A 429 has two distinct causes —
+`RequestBlocked` (rate) and `CapacityLimitExceeded` (tenant capacity
+overload) — which need different responses; honour `Retry-After` either
+way (`rest-api`).
+
+Scanner results **expire after 24 hours**, and `getModifiedWorkspaces`
+accepts a `modifiedSince` between 30 minutes and 30 days ago. Neither
+window is the activity-event one, which is a single UTC day per call
+within the last 28 days.
+
+## 6. Gates before irreversible writes
+
+These sit here, in the always-loaded body, because a gate buried in a
+reference file gets read and skipped. **Every row's gate must pass
+before the call.**
+
+| Write | Tier | Gate that fires first |
+| --- | --- | --- |
+| **Delete a domain** | admin | List subdomains (`parentDomainId`) and the assigned workspaces of the domain **and each subdomain**; name them and get explicit confirmation. The API documents no cascade block — only `DomainNotFound` and `UnknownError` — and Learn does not say what becomes of the workspaces. Do not tell the user they will simply be unassigned. |
+| **Bulk-assign workspaces to a domain** | admin | Read every target's current `domainId` and present the reassignments before writing: assignment "will be overridden unless bulk reassignment is blocked by domain management tenant settings", and that setting is **enabled by default**. By-IDs is synchronous; by-capacities and by-principals are 202 + LRO. |
+| **Assign or unassign one workspace** | data owner | A move is a reassignment: name the domain being left. Needs domain contributor **or** domain admin **and** workspace Admin; `InsufficientPermissionsToDomain` versus `InsufficientWorkspaceRole` tells you which is missing. Unassigning needs workspace Admin only. |
+| **Remove a domain role assignment** | admin | Confirm the domain is not left without an admin, and name the principal. `EntireTenant` can only ever be a Contributor. Syncing role assignments to subdomains works for Contributors only. |
+| **Delete a tag** | admin | Count the items carrying it first — deletion "is removed from all items where it was previously applied", with no undo. |
+| **Bulk sensitivity-label change** | admin | Dry-run the exact item list with before and after labels, then confirm. **User only — no service principal or managed identity.** 25 requests/hour, 2,000 items each; the label must be in the caller's (or the delegated user's) label policy. The response is **per item**, not all-or-nothing: read every status, and treat `InsufficientUsageRights` and `FailedToGetUsageRights` as protected-label refusals rather than transient errors. The label also lands on linked autogenerated items, whose IDs are not returned. |
+| **Write a tenant setting** | admin | Read the current value and show it beside the proposed one — the blast radius is the tenant. Enabling domain-admin delegation for certification lets domain admins override *any* tenant-level certification setting, not only enable/disable as the checkbox implies. |
+| **Assign a workspace to a capacity** | data owner | Needs workspace Admin plus capacity contributor or admin. Returns **202** — do not report success from the 202; poll to a terminal state. Non-Power BI Fabric items cannot migrate across regions, and the target must be a Fabric, Fabric trial or Power BI Premium capacity. |
+| **Associate an item identity** (beta) | data owner | This is **not** an ownership change. It assigns the identity to the **caller** and nothing else, needs Write on the item *and all its children*, and stops at the first child failure with details in `errorInfo`. Learn lists only Lakehouse and Eventstream as supported. |
+| **Activate, deactivate or replace a policy set** (preview) | scope admin: Fabric administrator for `Tenant`, capacity admin for `Capacity` | Read the set's rules and the set active for that scope now, and show both: activating replaces the active set, and once it propagates, up to 15 minutes, a policy with rules denies every action no rule allows. Deactivating returns the scope to the system defaults. Git cannot activate. No route was found in the reference (§3, *Policy sets*), so this is the portal's unless one is. |
+| **Create or update a domain** | admin | `?preview=false` is required on create and update. `displayName` is capped at 40 characters and `description` at 256; a duplicate name returns `EntityConflict`. Update accepts only `displayName`, `description` and `defaultLabelId`. |
+
+`assignmentMethod` on a label write defaults to `Standard`, which Learn
+defines as "set by an automated process"; `Priviledged` (Learn's
+spelling) means manual. Choose it deliberately — the two are treated
+differently by default-label policies.
+
+## 7. When there is no write API, route it to a person
+
+Do not promise a remediation that has no API, and do not invent one.
+Produce a named route instead.
+
+- **Endorsement** — promoted, certified, master data — has **no REST
+  write**. `UpdateItemRequest` accepts only `displayName` and
+  `description`. Anyone with write permission on an item can promote it
+  in the portal; only users a Fabric admin has specified can certify,
+  and that field "accepts security groups only. You can't enter named
+  users". Certification and master data must be enabled tenant-wide
+  first, and enablement can be delegated per domain. So the route is:
+  the certifier security group for that domain.
+- **DLP policies** are defined in the Microsoft Purview portal. Route to
+  the Purview compliance owner.
+- **Item ownership** — "Currently, there's no API support for changing
+  ownership of Fabric items." Takeover is a portal action by someone
+  with read and write permission, it cascades to child items and cannot
+  be done on a child directly. It leaves existing schedules with their
+  old owner and authentication context, and a successful on-demand run
+  does not show a schedule will run, so review schedules separately
+  ([Schedule ownership and item
+  takeover](https://learn.microsoft.com/fabric/fundamentals/job-scheduler#schedule-ownership-and-item-takeover)).
+  Mirrored databases cannot change ownership at all — a broken one must
+  be recreated. Semantic models, reports, dataflows and warehouses keep
+  their own separate mechanisms. Route to the item's `creatorPrincipal`,
+  or to a workspace admin.
+- **A domain's default sensitivity label** can be set by a domain admin
+  only through the portal, behind the "Domain admins can set default
+  sensitivity labels for their domains (preview)" tenant setting; the
+  `defaultLabelId` write on the domain object needs a Fabric admin. And
+  it is **not retroactive**: it applies when a new item is created and
+  saved, or when an existing *unlabeled* item is updated and saved. It
+  never overrides a manually applied label, and it does not work with
+  deployment pipelines or Git integration. A default label therefore
+  stops the backlog growing; it does not clear it.
+
+## 8. Constraints and false negatives
+
+- **Admin List Items' silence is not evidence** (§3). This is the most
+  likely way this skill produces a confidently wrong number.
+- **A sensitivity label comes back as a GUID only.** Resolve names
+  separately — `security`.
+- **Refresh history needs Write on the semantic model**, so a Viewer's
+  403 means "cannot see", not "never refreshed". OneDrive refresh
+  history is never returned. Shared capacity allows eight scheduled or
+  API-triggered refreshes a day; manual portal refreshes don't count
+  toward it.
+- **Job history caps at 100 recently completed runs per item**, so
+  "inactive" derived from it is bounded by that ceiling.
+- **A newly applied tag takes hours to appear** in the icon and in
+  search, so an immediate read-back that shows nothing is not a failed
+  write. Tags cap at 10 per item and 10 per workspace, counted
+  independently, and 10,000 per tenant. Moving a workspace to another
+  domain keeps its domain-level tags applied, but they may not be
+  re-appliable there once removed.
+- **Catalog Search returns only `id`, `type`, `displayName`,
+  `description`, `catalogEntryType` and `hierarchy.workspace`** — no
+  label, endorsement or refresh state — and mixes `Workspace` entries
+  in with items. It cannot be the basis of a coverage statistic. Its
+  reference no longer lists excluded item types, and its `ItemType` enum
+  lists `Dashboard` and `Dataflow`, but no call here has shown a search
+  returning either (Catalog Search reference, read 2026-11-14).
+  What's New (2026-10-02) adds table discovery (preview): tables from
+  semantic models, lakehouses and mirrored databases, found by table
+  name, description or exact column name. The Search API reference still
+  says search covers only display name, workspace display name and
+  description, so the extension is undocumented there (2026-10-06).
+- **Domain assignment is not access.** Assigning a workspace to a domain
+  "doesn't affect item visibility or accessibility"; access is workspace
+  role plus item permissions. All tenant users can see all domains.
+- **Nothing here was measured against a tenant** (2026-09-11). Where a
+  behaviour matters and Learn is silent — what a deleted domain does to
+  its workspaces, whether Associate Identity answers 200 or 202 — say
+  it is undocumented rather than predicting it.

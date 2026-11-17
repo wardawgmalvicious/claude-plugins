@@ -1,0 +1,367 @@
+# Fabric Eventhouse / KQL Database
+
+KQL management and query patterns specific to Fabric Eventhouse. Assumes familiarity with KQL — focus is on Fabric-specific behavior and az-rest-driven workflows.
+
+An item's definition, REST calls and MCP server have files of their own,
+as does workspace monitoring. Read one first for its job; past it, the
+REST spec's folder, then Learn, by `microsoft-learn-mcp`, or with no server, `curl -sL -H 'Accept: text/markdown' <page URL>` (undocumented, read 2026-11-07):
+
+| The job | Read first |
+| --- | --- |
+| A KQL database's definition parts, its `creationPayload`, or its table shortcut calls | [references/kql-database-api.md](references/kql-database-api.md) |
+| An eventhouse's definition or create payload | Learn's [Eventhouse definition](https://learn.microsoft.com/rest/api/fabric/articles/item-management/definitions/eventhouse-definition): one part, `EventhouseProperties.json`, holding `{}`; a create may send `creationPayload.minimumConsumptionUnits`; nothing past the generic seven operations (spec [`eventhouse/`](https://github.com/microsoft/fabric-rest-api-specs/tree/main/eventhouse) at `a96c37a`, 2026-10-20) |
+| The remote MCP server: endpoint, audience, wiring | [references/remote-mcp.md](references/remote-mcp.md) |
+| Workspace monitoring: the monitoring item or legacy setup, access, retention, its tables and who covers each | [references/workspace-monitoring.md](references/workspace-monitoring.md) |
+
+A live page that contradicts a line here wins: say so, act on the page,
+and route the fix by `capture-learning`, bar a dated measured line that
+names the page it overrules and the call that measured it, which a page
+changed since its date sends back to re-measure. An observed claim is cited
+or marked pending a doc check, and stands, marked observed, only where no
+page covers it.
+
+## Connection
+
+- **Cluster URI**: each KQL Database has its own `queryServiceUri`,
+  `https://<cluster>.kusto.fabric.microsoft.com`. Discover with
+  `GET /v1/workspaces/{wsId}/kqlDatabases`, which returns no database
+  name: pass the item's `id` as `db`, the engine's own name for it
+  (*Monitoring*). Learn's `KQLDatabaseProperties` lists none, and four
+  live databases carried none (2026-10-24).
+- **Token audience**: `https://kusto.kusto.windows.net/.default` for all direct
+  access. A wrong audience surfaces as a 401 *"Request is invalid and cannot be
+  processed"*, not an auth error.
+- **Query endpoint**: `POST {clusterUri}/v1/rest/query`, body
+  `{"db":"<dbName>", "csl":"<KQL>"}`.
+- **KQL `|` breaks shell escaping** — write the JSON body to a temp file and pass
+  `--body @<file>`, never inline.
+- **If a `scripts/data/kql.sh` wrapper is deployed in the repo** (an
+  internal local-cli template), prefer it over the `az rest` recipe for
+  queries and management commands: it takes KQL on `-q`, from a file
+  with `-i` or on stdin with no temp file, and routes a leading-dot
+  command to `/v1/rest/mgmt`. It fails on an HTTP error status, and it
+  reads a 200's body for the partial failures and warnings Kusto reports
+  there, printing each on stderr with a non-zero exit, so a flagged
+  result never passes for a clean one. `-l` lists the databases the repo
+  has configured and `-h` prints the rest. It is an accelerator that
+  happens to be present, never a dependency; item definitions still take
+  the REST envelope.
+
+Worked `az rest` invocation:
+[references/programmatic-access.md](references/programmatic-access.md).
+Item definitions: the table above.
+
+## Schema Discovery
+
+```kql
+.show tables
+.show table T schema as json        // column names + types, for diffing in code
+.show table T cslschema             // the same as name:type, to paste into .alter / .create
+.show table T details               // row count, extent count, size
+.show functions
+.show materialized-views
+.show database principals           // who has what role
+```
+
+## Schema Evolution
+
+- **`.create-merge table`** is the safe / idempotent form — adds missing columns, never drops existing. Prefer over `.create table` for repeatable deployments.
+  A deployment pipeline appears to apply a KQL database's schema the
+  same way: two stages reached only by pipelines held every column added
+  in the repo and every one since dropped from it, the same set in both
+  (inferred from their end state, 2026-10-07; Learn's deployment pages
+  don't say). Run drops live in each stage.
+- `.alter-merge table T (NewCol: string)` — add column.
+- **A column added or dropped disables each materialized view over the
+  table built on `arg_max(Timestamp, *)`, `arg_min(Timestamp, *)` or
+  `take_any(*)`** without `autoUpdateSchema = true`. Re-run
+  `.alter materialized-view` with its exact query, then
+  `.enable materialized-view` (Learn, 2026-10-13). `autoUpdateSchema`
+  skips both, but Learn warns that a dropped source column can then lose
+  view data irreversibly.
+- **`.alter table T (Col1:type, Col2:type, …)`** restates the whole column
+  list and is the only command that **reorders**: the table keeps exactly
+  the columns listed, in that order, and **drops any left out, with their
+  data.** Start from `.show table T cslschema`. Learn also warns that
+  parallel ingestion "that disregards the order of columns" can land
+  values in the wrong columns, and prescribes a mapping or a pause. A CSV
+  sender is inside that; name-keyed MultiJSON is **likely** outside it,
+  since it maps by name
+  ([references/ingestion.md](references/ingestion.md)), and alters under
+  live unmapped MultiJSON streaming did no harm (2026-09-22), but no
+  deliberately concurrent test has been run.
+- `.rename column T.OldName to NewName` — rename.
+- `.drop column T.OldCol` — irreversible; fails if column is used in materialized view or function (drop dependents first).
+- `.drop table T ifexists` — guarded drop.
+- **Atomic blue-green swap** via `.rename tables A=B, B=C, C=A` (single command, atomic).
+
+**Docstring and folder: measure, don't read.** Learn overstates what
+`.alter table` does to them and says nothing of what `.create-merge`
+does. A bare `.alter table`, with no `with (...)` clause, leaves the
+table's `docstring` and `folder` as they were, though Learn says it
+overwrites both; column docstrings survive too, since the command has no
+syntax for them. `.create-merge table … with (docstring = "…")` does set
+an existing table's docstring, where Learn's page covers only columns.
+Measured on Fabric Eventhouse, not ADX: the alter on 2026-09-22 against
+before/after schema dumps (docstring on real tables in two environments,
+folder on a scratch table), the create-merge on 2026-09-17. Restating
+`with (docstring = "…", folder = "…")` on an alter still costs nothing
+and guards the documented reading: belt-and-braces, not a required
+workaround.
+
+**With OneLake availability ON the surface narrows**: adding and deleting
+columns work (April 2026+), but altering a column type, renaming a table,
+applying RLS, and deleting/truncating/purging data do **not** — toggle
+availability off, change, toggle back on. Full matrix:
+[references/onelake-availability.md](references/onelake-availability.md).
+
+## Ingestion
+
+| Command | Use for |
+|---|---|
+| `.ingest inline into table T <\|` | Small data / testing |
+| `.set-or-append T <\|` | Append KQL query results |
+| `.set-or-replace T <\|` | Replace table contents from a query |
+| `.ingest into table T (h'abfss://...;impersonate')` | Blob / ADLS / OneLake files — **the `;impersonate` suffix is required** |
+
+**Streaming ingestion needs a policy on the table or its database: read
+it before enabling one.** A database policy covers every table, and a
+table's own overrides it (Learn). Fabric set one, `IsEnabled: true`, in
+the second after it created a database by REST, and a sibling read the
+same, as did one Git sync created and one a deployment pipeline created,
+whose tables had none of their own (journal and policy reads,
+2026-10-12, and policy reads, 2026-10-13; portal creation unchecked). So
+`.show database D policy streamingingestion`, then the table's for one
+that refuses, and
+`.alter table Events policy streamingingestion enable` only where neither
+is on.
+
+**Pair every DDL change on a streaming-ingested table with a cache
+clear.** Nodes cache each table's streaming-ingestion schema. The
+refresh after a `.create-merge` is automatic but asynchronous and takes
+minutes, and until it lands every ingest keeps writing the old shape —
+a new column arrives **empty on every row, with a success response and
+a matching record count.** Nothing errors anywhere.
+
+```kql
+.clear table T cache streamingingestion schema      // one table
+.clear database cache streamingingestion schema     // every table, one call
+```
+
+Reach for the database-scoped form after a bulk operation — one call
+across 19 renamed tables against 19 round trips. It also collapses the
+cold-table window in which a freshly created table answers `520` to
+every ingest (measured 76 s, 2026-09-14). Both return one row per node;
+a `Status=Failed` row is safely retryable.
+
+> **Schema-associated Eventstream destinations** auto-create one table per schema
+> named `{CloudEventType}_{CloudEventSchemaVersion}` (e.g. `Orders_v1`) — don't
+> create these by hand. See [eventstream.md](../eventstream/eventstream.md).
+
+Full command syntax and CSV/JSON mapping definitions:
+[references/ingestion.md](references/ingestion.md).
+
+## Policies
+
+| Policy | Purpose | Notes |
+|---|---|---|
+| **Retention** | Soft-delete period + recoverability | JSON body with `SoftDeletePeriod` and `Recoverability` |
+| **Caching** | Hot (SSD) vs cold tier window | `.alter table T policy caching hot = 30d` |
+| **Partitioning** | Hash key for extent pruning | Hash on column with `XxHash64`, `MaxPartitionCount` |
+| **Merge** | Background extent merge thresholds | `RowCountUpperBoundForMerge`, `MaxExtentsToMerge` |
+| **Streaming ingestion** | Enable streaming endpoint | Table or database; Fabric sets it on a database made by REST, Git sync or a deployment pipeline. `.show database D policy streamingingestion` first |
+
+Database-level policies (`.alter database MyDB policy ...`) act as defaults; table-level overrides them. Check effective policy with `.show table T policy retention`.
+
+## Materialized Views
+
+```kql
+.create materialized-view with (backfill=true) EventCounts on table Events {
+    Events | summarize Count = count(), LastSeen = max(Timestamp) by EventType
+}
+
+// Lifecycle
+.show materialized-view EventCounts statistics
+.disable materialized-view EventCounts
+.enable materialized-view EventCounts
+.drop materialized-view EventCounts
+
+// Query a materialized view
+materialized_view("EventCounts") | where EventType == "Login"
+```
+
+
+## Stored Functions and Update Policies
+
+`.create-or-alter function` takes `docstring`, `folder`, and default parameter
+values — see [references/REFERENCE.md](references/REFERENCE.md). The Fabric-specific
+piece is wiring one as an **update policy**, an automatic transform applied on
+ingestion into the source table:
+
+```kql
+.create-or-alter function ParseRawEvents() {
+    RawEvents
+    | extend Parsed = parse_json(RawData)
+    | project
+        Timestamp = todatetime(Parsed.timestamp),
+        UserId    = tostring(Parsed.userId)
+}
+
+.alter table ParsedEvents policy update
+@'[{"IsEnabled":true,"Source":"RawEvents","Query":"ParseRawEvents()","IsTransactional":true}]'
+```
+
+`IsTransactional: true` makes the source-row insert and the transform atomic — failed transform aborts both.
+
+## External Tables (OneLake / ADLS)
+
+```kql
+.create external table ExternalSales (
+    OrderDate: datetime, ProductId: string, Quantity: int, Amount: real
+) kind=storage
+dataformat=parquet
+( h'abfss://workspace@onelake.dfs.fabric.microsoft.com/lakehouse.Lakehouse/Tables/sales;impersonate' )
+
+external_table("ExternalSales") | where OrderDate > ago(30d) | summarize sum(Amount) by ProductId
+```
+
+**An external table over OneLake-secured data enforces OneLake security
+for the querying user**: Eventhouse applies the OneLake roles' RLS and
+CLS at GA
+([Read data secured with OneLake security](https://learn.microsoft.com/fabric/onelake/security/read-secured-data),
+read 2026-11-14), and the GA post says object-level security too
+(reported: Fabric blog `ba-p/5377875`, 2026-11-04). The roles and
+engines are the `security` skill's.
+
+## Permission Model
+
+| Role | Query | Ingest | Admin |
+|---|---|---|---|
+| `viewer` | ✅ | ❌ | ❌ |
+| `user` | ✅ | ❌ | ❌ |
+| `ingestor` | ❌ | ✅ | ❌ |
+| `admin` | ✅ | ✅ | ✅ |
+
+```kql
+.add database MyDB viewers ('aaduser=user@contoso.com')
+.add database MyDB admins  ('aaduser=admin@contoso.com')
+.add table T admins        ('aaduser=tableadmin@contoso.com')
+```
+
+Layered with **Fabric workspace roles** (Admin/Member/Contributor/Viewer). `restrict access` and security functions provide RLS.
+
+A **database shortcut** in an eventhouse can share selected subitems (tables, shortcut tables, materialized views, functions) instead of the whole source database, GA since September 2026 (Learn, 2026-10-06).
+
+## Query Patterns
+
+| Pattern | Why |
+|---|---|
+| **Always filter by time first** — `where Timestamp > ago(...)` | Enables extent pruning |
+| Use `has` over `contains` | `has` uses term index (fast); `contains` is substring scan (slow) |
+| `project` early to drop unused columns | Reduces memory |
+| `summarize` with `bin(Timestamp, 1h)` | Efficient time bucketing |
+| `take 100` for exploration | Avoids full scans |
+| `materialize()` reused subexpressions | Caches intermediate result |
+| Avoid `*` in `project` | Explicit column list survives schema changes |
+
+### String matching speed
+
+| Operator | Indexed | Case-Sensitive | Speed |
+|---|---|---|---|
+| `==` | ✅ | Yes | Fastest |
+| `=~` | ❌ partial | No | Medium |
+| `has` | ✅ | No | Fast |
+| `has_cs` | ✅ | Yes | Fast |
+| `startswith` | partial | No | Medium |
+| `contains` | ❌ | No | Slow |
+| `matches regex` | ❌ | Yes | Slowest |
+
+## Monitoring
+
+```kql
+.show queries                           // finished queries; live ones: .show running queries
+.show commands | where StartedOn > ago(1h)
+.show journal                           // management ops history
+.show ingestion failures | where FailedOn > ago(24h)
+.show table T extents                   // per-table extent count + size
+.show database datastats                // DB size, extent count, row count
+```
+
+A Fabric KQL database's engine name is its item ID: `.show databases`
+gives the GUID as `DatabaseName` and the display name as `PrettyName`,
+and output columns that name a database carry the GUID, as
+`.show queries`' `Database` and a policy's `EntityName` did. So
+`.show queries | where Database == '<display name>'` returns no rows
+and no error: map the two first with
+`.show databases | project DatabaseName, PrettyName`. A display name
+still works wherever a database is named as input (one client estate,
+2026-10-13, in two environments; Learn says only that `Database` is the
+database's name), bar a workspace monitoring database, whose
+`PrettyName` is its eventhouse's name: `db` set to its own item name
+failed `BadRequest_EntityNotFound` (2026-10-24). A finished query's
+`tolong(ResultSetStatistics.TablesStatistics[0].RowCount)` is the rows
+it returned, `0` for a poll with nothing to send (observed once that
+day; Learn's `.show queries` page gives `ResultSetStatistics` no shape,
+read 2026-11-07; a `RowsCount` path reads null, silently).
+
+## Cross-Database Queries
+
+```kql
+database("OtherDB").OtherTable | take 10
+```
+
+## Graph semantics
+
+KQL can do graph analysis **inside the KQL engine** — `make-graph` for a
+transient graph, `graph()` over a persistent snapshot, then `graph-match` /
+`graph-shortest-paths`. This is **not** the standalone Fabric **GraphModel**
+item, which is a separate workload using GQL / ISO-39075 (see `iq-items`).
+Same word, different engine.
+
+Operators, snapshot management and limits, and the openCypher/GQL-over-KQL
+preview: [references/graph-operators.md](references/graph-operators.md).
+
+## Gotchas
+
+| Issue | Cause | Fix |
+|---|---|---|
+| `Request is invalid and cannot be processed` (401) | Wrong token audience | Use `https://kusto.kusto.windows.net/.default` |
+| `Request is invalid and cannot be executed` (400), after `General_BadRequest:` or `BadRequest_EntityNotFound:` | Not the audience, whose 401 says *processed*. `General_BadRequest` answered a query naming a column the table lacks, without naming it, on `/v1/` and `/v2/rest/query` alike; `BadRequest_EntityNotFound` a `db` the engine does not know (2026-10-24) | `T \| getschema` for the columns; the database's item ID for `db` (*Connection*) |
+| `dynamic` column shows as string | Stored as string: a `string`-typed column, or a value that never parsed. JSON text streamed into a `dynamic` column was parsed on ingestion (once, 2026-10-12); invalid JSON is untested | Check the column's type (`getschema`); wrap with `parse_json(col)` or `todynamic()` |
+| `Forbidden (403)` on management commands | Insufficient role | Need `admin` or `ingestor` database role |
+| OneLake / ADLS ingest auth fails | Missing `;impersonate` on URI | Append `;impersonate` to the storage URI |
+| Materialized view stuck at 0% | No new source data or backfill pending | `.show materialized-view MV statistics` |
+| Materialized view disabled after a column add or drop | `arg_max(Timestamp, *)`-style view without `autoUpdateSchema` | `.alter materialized-view` with the same query, then `.enable materialized-view` |
+| `.drop column` fails | Column referenced by materialized view or function | Drop dependents first |
+| Streaming ingestion errors | No streaming policy on the table or its database, or a table-level `false` over the database's | Read both policies, then `.alter table T policy streamingingestion enable` |
+| External table returns no data | Path / format / schema mismatch | Verify `abfss://` path, `dataformat=`, and column types match source |
+| Retention deleting data too soon | Table-level policy overrides DB default | `.show table T policy retention` |
+| `dcount()` returns approximate value | HyperLogLog by design | `dcount(col, 4)` for higher accuracy (costly), or `T \| distinct col \| count` for exact |
+| `.show tables details` reports `TotalRowCount 0` for every table after a rename or other structural change | Cached, asynchronously-recomputed statistic — the data is untouched | Verify before concluding anything: `union withsource=SourceTable T1, T2, … \| summarize count() by SourceTable`. Reproduced 2026-09-15 across 19 tables |
+| `.show database policy mirroring` / `policy update` → *"Syntax error: A recognition error occurred"* | Those policy `.show` commands are **table-scoped only** — unlike the streaming-ingestion cache clear, which is database-scoped | `.show table T policy mirroring`. There is no multi-table form either — `.show tables (A, B) policy mirroring` fails the same way |
+
+## Remote MCP server (preview)
+
+A hosted HTTP MCP server per KQL database gives schema discovery, NL→KQL, and
+query execution. **It connects from Claude Code** — through a `headersHelper`
+command supplying an `az` bearer at the `https://api.fabric.microsoft.com`
+audience, measured 2026-09-14 on CLI 2.1.268 against this exact
+workspace/item-bound shape over two rounds. What fails is Claude Code's
+**automatic** OAuth flow, which registers via Dynamic Client Registration that
+Microsoft's auth server doesn't support — a fact about the flow, not about the
+endpoint. Watch the failure text on this URL shape: a helper that yields no
+credential prints `Error dialing <url>`, which reads like a network fault and
+is an auth one. The local `fabric-rti-mcp` (`uvx microsoft-fabric-rti-mcp`)
+stays worth preferring for breadth rather than reachability — it also reaches
+ADX and Eventstream. URL pattern, auth requirements, and the config block:
+[references/remote-mcp.md](references/remote-mcp.md).
+
+## Reference
+
+- Microsoft Learn: [Eventhouse overview](https://learn.microsoft.com/fabric/real-time-intelligence/eventhouse)
+- Full MS Learn link bundle (KQL management commands / ingestion / mappings / materialized views / update policies / monitoring / REST query API): [references/REFERENCE.md](references/REFERENCE.md)
+
+## See also
+
+- rest-api skill — `kqlDatabases` listing endpoint and pagination; `kusto.kusto.windows.net/.default` audience details in its `references/auth.md`; the `fab` CLI for Eventhouse item creation, principals and exports in its `references/cli.md`
+- iq-items skill — the *other* graph workload: the standalone Fabric **GraphModel** item (GQL / ISO-39075 over OneLake). Different engine; the KQL graph operators above do NOT apply there.

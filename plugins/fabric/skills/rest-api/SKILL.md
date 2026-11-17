@@ -1,0 +1,489 @@
+---
+name: rest-api
+description: "Use when calling the Microsoft Fabric or Power BI REST APIs, authenticating to them or running the Fabric CLI `fab`, or writing, reviewing or changing a script or code that does — tokens and audiences, `az login` and `az rest`, a service principal's tenant settings and workspace roles, workspaces and items, item IDs, definitions, long-running operations, pagination, jobs and schedules, Git integration (`git/status`, `updateFromGit`, `commitToGit`), throttling, capacity, workspace monitoring — and when troubleshooting any Fabric error: its index maps an error code or symptom, from a REST call, a Git sync, a deploy, a notebook, a warehouse or a report publish, to the reference or skill that owns the fix."
+when_to_use: "Use for a 401 or 403 from Fabric, Power BI, OneLake, SQL or KQL; a token for the wrong audience; a service principal refused though its app registration holds API permissions; `fab` commands, `fab auth` or `fab api`; EntityNotFound or PowerBIEntityNotFound; a 202 to poll or a 429 to back off from; workspace monitoring, its logs, Log workspace activity or the monitoring item; or error text to look up, such as InvalidContent, DataLoss, MissingDefinitionParts, Git_HeadNotSynced or a 24556 snapshot conflict."
+# model: inherit  # any model: value blocks Copilot slash invocation
+# effort: medium   # unset = inherit session effort; there is no 'effort: inherit'
+disable-model-invocation: false
+---
+
+# Fabric REST API patterns
+
+Base URL: `https://api.fabric.microsoft.com/v1`
+
+Five jobs have a reference to read before answering one.
+The rest of this file is the REST API itself; one item type's definition,
+calls and MCP server are its owning skill's, by the index in § Definition
+APIs. Past a reference, the REST spec's folder,
+`curl -s https://raw.githubusercontent.com/microsoft/fabric-rest-api-specs/main/<folder>/swagger.json`,
+`fab`'s docs at the same host's `microsoft/fabric-cli/main/docs/`, then
+Learn, by `microsoft-learn-mcp` (`microsoft_docs_search`, then
+`microsoft_docs_fetch`), or with no server, `curl -sL -H 'Accept: text/markdown' <page URL>` (undocumented, read 2026-11-07). A live page that contradicts a line here wins:
+say so, act on the page, and route the fix by `capture-learning`, bar
+a dated measured line that names the page it overrules and the call that
+measured it, which a page changed since its date sends back to re-measure.
+An observed claim is cited or marked pending a doc check, and stands, marked
+observed, only where no page covers it.
+
+| The job | Read first |
+| --- | --- |
+| A token or its audience, `az login` or `az rest`, a TDS connection, or what authorizes a service principal | [auth.md](references/auth.md) |
+| The Fabric CLI, `fab`: paths, commands, `fab auth`, `fab api` | [cli.md](references/cli.md) |
+| An error code, error text or symptom, from any Fabric surface | [gotchas.md](references/gotchas.md), whose index names the reference or skill that owns the fix |
+| The Fabric Core MCP Server or the local Fabric MCP Server | [fabric-mcp.md](references/fabric-mcp.md) |
+| Workspace monitoring, the monitoring item or the legacy **Log workspace activity** toggle: turning it on, who can read it, retention, its tables and the KQL that reads them | `rti-items`' `references/eventhouse/references/workspace-monitoring.md` |
+
+## Finding Workspaces and Items
+
+1. List workspaces: `GET /v1/workspaces` → paginate with `continuationToken`
+2. Find by name: iterate results until `displayName` matches
+3. List items in workspace: `GET /v1/workspaces/{wsId}/items?type={ItemType}`
+4. Type-specific endpoints return extra `properties` (connection strings, etc.):
+   `GET /v1/workspaces/{wsId}/{lakehouses|warehouses|notebooks|semanticModels|...}`
+5. Cross-workspace discovery (no `wsId` in path): `POST /v1/catalog/search` with `{ "search": "Sales Revenue", "pageSize": 50, "filter": "Type eq 'Lakehouse'" }` → permission-trimmed entries across your whole accessible estate, by catalog metadata (name/description/workspace name): items, each with its `id` GUID and its workspace as `hierarchy.workspace.id` and `.displayName`, and `Workspace` entries (`catalogEntryType` `Workspace`), which carry no `hierarchy`. `pageSize` 1–1000, default 50; filter by `Type` (at most 500 values) or `WorkspaceId` (at most 12); search operators `"…"` (phrase), `*`, `?` and `&&`; 50 calls a minute; a `continuationToken` is sent alone, never with `search` or `filter` (Catalog Search reference, read 2026-11-14). OneLake Catalog Search API (Preview, March 2026); same capability as the `fab find` CLI verb ([cli.md](references/cli.md)) and the Fabric Core MCP server's `search_catalog` tool.
+
+## Sensitivity Labels on Item Responses
+
+As of March 2026 GA, `List Items` / `Get Item` / `Update Item` responses include a `sensitivityLabel` property on the `Item` object when the item has a Purview information-protection label applied:
+
+```json
+{
+  "id": "34fa05fc-e7ba-435a-b1ab-63534b6aa4f9",
+  "displayName": "PDF_Env",
+  "type": "Environment",
+  "workspaceId": "2ae4b0b9-895b-4676-bfcd-125b1f20e34d",
+  "sensitivityLabel": { "sensitivityLabelId": "4922deb9-fe99-4f4f-971c-9bdf556ec6a9" }
+}
+```
+
+**Field name gotcha — spec vs runtime drift.** The MS Learn `Item` definition page documents this inner field as `id`, but the live API returns `sensitivityLabelId`. Verified across 233 labeled items in 7 workspaces (May 2026) on both `GET /v1/workspaces/{wsId}/items` and `GET /v1/workspaces/{wsId}/items/{itemId}` — 233/233 use `sensitivityLabelId`. Trust the runtime, not the schema page.
+
+The `sensitivityLabel` object carries **only the label GUID** — there is no `displayName` / `name` on the response. Resolving the GUID to a human-readable label name requires a separate call (Microsoft Graph `/security/informationProtection/sensitivityLabels` or Purview). The `sensitivityLabel` field is omitted entirely on unlabeled items.
+
+**Read-only on these endpoints.** The `Update Item` PATCH body schema (`UpdateItemRequest`) accepts only `displayName` and `description` — it does NOT accept a `sensitivityLabel` field. To apply, change, or remove labels programmatically, call the admin APIs `POST /v1/admin/items/bulkSetLabels` / `bulkRemoveLabels` — the path is under `items` even though Learn files the reference under Labels (verified 2026-09-12). They require `Tenant.ReadWrite.All` + Fabric admin role, are **`User` only** (service principals and managed identities are rejected), cap at ≤ 25 req/hour, ≤ 2000 items/request, and report status per item rather than all-or-nothing. Coverage audits and the write gate: catalog-governance skill.
+
+## Item IDs: Runtime vs logicalId
+
+Every Fabric item has **two** GUIDs, and they are NOT interchangeable. Using the wrong one is a leading cause of `PowerBIEntityNotFound` / `EntityNotFound` errors when referencing items by ID from a pipeline, notebook parameter, REST call, or Variable Library variable.
+
+| Identifier | Source | Resolved by | Use for |
+|---|---|---|---|
+| **Runtime item ID** | Fabric portal URL (`…/items/{guid}`); `GET /v1/workspaces/{wsId}/items` response `id` | The Fabric engine at execution time | Pipeline activity `notebookId` / `pipelineId`, Variable Library values consumed at runtime, REST `/items/{id}` calls, `notebookutils.runtime.context` lookups |
+| **logicalId** | `.platform` file → `config.logicalId`; `logicalId` on Get Item / List Items, null when none is assigned | Git integration / source-control tooling | `.platform` payloads, PBIP + the `pbir` CLI + `fab import` source-control operations |
+
+**The relationship is exact, not a resemblance: for a portal-created item, `logicalId` is the runtime item ID with its 16 bytes reversed.** Confirmed 2026-09-03 against `GET /v1/workspaces/{wsId}/items` over 19 workspaces — 21 of 21 resolvable reversals hit a real item with the same `displayName` and `type`, none hit a different item, and no raw `logicalId` was itself an item ID. Reversal is an involution, so it round-trips. This is also why a `logicalId` so often has a version nibble that is not `4`: a reversed v4 GUID does not look like a v4 GUID (79 reversals, zero failures, across two private repos and ~20 public ones spanning tenants).
+
+**The precondition is load-bearing.** It holds for items **created in the portal**. An item authored *git-first* — committed as files, then synced into the workspace — carries a fresh client-side v4 that encodes nothing, and reversing it yields a GUID that is not an item ID. Classifying items by whether their oldest commit is a Fabric portal sync (`Committing N items from workspace …`) separated the two forms 76 of 76 with no cross-cases.
+
+Knowing the derivation does **not** make the values interchangeable — Fabric will NOT silently fall back from one to the other at runtime. It means you can *derive* one offline instead of calling the API for it.
+
+**Rule of thumb:** if the value ends up in a payload the Fabric engine reads (pipeline definition, Variable Library value, REST body), use the **runtime item ID**. If it ends up in a file the Git integration layer reads (`.platform`, PBIP manifest), use the **logicalId**.
+
+To fetch the runtime ID:
+- Portal: open the item, copy the trailing GUID from the URL
+- REST: `GET /v1/workspaces/{wsId}/items` → find by `displayName`, return `id`
+- `fab` CLI: `fab get "Workspace.Workspace/Item.ItemType" -q id`
+- **Offline, from a committed `.platform`** — reverse the `logicalId`, no credential needed. Portal-created items only; verify once against any of the three above before relying on it in a script.
+
+```python
+import uuid
+rev = lambda g: str(uuid.UUID(bytes_le=uuid.UUID(g).bytes_le[::-1]))
+rev("7c4d1e88-93af-4b02-9d61-2fa50c7e3b14")   # synthetic
+# -> '0c7e3b14-2fa5-9d61-4b02-93af7c4d1e88'
+```
+
+To fetch the `logicalId`, read it from the API before deriving it:
+`GET /v1/workspaces/{wsId}/items[/{itemId}]` returns it beside `id`
+([Get Item](https://learn.microsoft.com/rest/api/fabric/core/items/get-item)),
+and so does `fab get <item> -q logicalId`. One workspace's List Items
+carried it for every Git-supported item and for no `SQLEndpoint` or
+`AppBackend`, matching each committed `.platform` (2026-10-01).
+
+**Variable Library specifically:** variable string values are passed **verbatim** to consumers — they are NOT resolved against `.platform` logicalIds. Always store the runtime item ID.
+
+## Long-Running Operations (LRO)
+
+Many mutating calls return `202 Accepted` with `Location` and `x-ms-operation-id` headers.
+
+- Poll: `GET /v1/operations/{operationId}` → `status: Running|Succeeded|Failed`
+- Get result: `GET /v1/operations/{operationId}/result` (after Succeeded), only where the operation has one. Learn: "Not all long running operations have a result", and a completed operation's `Location` points at its result where there is one. `commitToGit` and `updateFromGit` answer `400` `OperationHasNoResult` there (2026-10-12): success, with no body.
+- Honor `Retry-After` header. Use exponential backoff if absent.
+
+**Item creation is 201-OR-202, not "always sync" or "always LRO"** — the same endpoint can return either depending on current provisioning load. Always branch on status code; never assume sync. A function that only inspects the body on 2xx will silently return before the item is queryable whenever Fabric picks the LRO path, racing any immediately-downstream call that expects the new item to exist.
+
+Canonical `create_*` pattern for Fabric item creation:
+
+```python
+def create_item(access_token: str, item_name: str, ...) -> str:
+    """Return the newly-created item's GUID. Handles 201 and 202."""
+    workspace_id = notebookutils.runtime.context["currentWorkspaceId"]
+    endpoint = f"https://api.fabric.microsoft.com/v1/workspaces/{workspace_id}/<items_path>"
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Content-Type": "application/json",
+    }
+    body = {"displayName": item_name}
+
+    response = requests.post(endpoint, headers=headers, json=body)
+
+    if response.status_code == 201:
+        # Synchronous creation — the body is the created item
+        item_id = response.json()["id"]
+    elif response.status_code == 202:
+        # LRO — poll to completion, then fetch /result for the item body
+        result_response = poll_lro(response, headers, return_result=True)
+        item_id = result_response.json()["id"]
+    else:
+        response.raise_for_status()
+
+    return item_id
+```
+
+The `poll_lro` helper honors `Retry-After`, polls `Location` until the operation reaches `Succeeded`, and (with `return_result=True`) fetches `/result` to return the actual created-item body.
+
+**`az rest` cannot tell a `202` from a `200`.** It prints the body and
+nothing else, and has no option of its own to show headers (Azure CLI
+2.90.0, 2026-10-01), so a `202` comes back as empty output and exit 0,
+`Location` and `x-ms-operation-id` unseen. On `getDefinition` a session
+took that for an item with no definition (2026-09-24). Where a call may
+answer `202`, as `getDefinition`, a definition update or a create can,
+use `fab api --show_headers`, which prints `status_code`, an empty body
+as `"(Empty)"`, and the headers, though like `az rest` it does not poll
+(`fab` 1.7.0 source, 2026-10-01).
+
+## Definition APIs
+
+An item type with a definition accepts a `definition` object holding
+`format`, `parts`, and each part's base64-encoded payload. Which formats
+and parts a type takes is its owner's, by the index below.
+
+```
+POST /v1/workspaces/{wsId}/items/{itemId}/updateDefinition[?updateMetadata=true]
+```
+
+- **`?updateMetadata=true` controls whether `.platform` is honored.** Without it, any `.platform` part in `definition.parts` is silently ignored — `displayName`/`description` won't update.
+- Conversely, setting `?updateMetadata=true` *requires* a `.platform` part. The flag without `.platform` returns 400.
+- For content-only updates (typical), omit the flag.
+- **`updateDefinition` replaces the whole definition**: send every part,
+  changed or not. Learn's page says only that it "overrides the
+  definition for the specified item" (read 2026-10-20); the symptom of a
+  partial send, parts missing afterwards, is in
+  [gotchas.md](references/gotchas.md).
+- An item type's own spec folder also has a typed route, under the path
+  its owner's file names, such as
+  `POST /v1/workspaces/{wsId}/notebooks/{id}/updateDefinition`: same body
+  shape.
+- `getDefinition` is a POST with empty body (`'{}'`) — bare POST returns HTTP 411 Length Required. Result is fetched via the LRO's `{Location}/result` URL (note the `/result` suffix).
+
+### Which skill owns an item type
+
+The rules above and the generic seven operations (create, get, list,
+update, delete, `getDefinition`, `updateDefinition`) are this skill's.
+One item type's formats and parts, its calls past the generic seven and
+its MCP server are its owner's, in the files below (2026-10-20). Each
+records the spec SHA or the date it was read at.
+
+| Item type | Owner | Definition and REST | MCP server |
+| --- | --- | --- | --- |
+| `DataAgent` | `iq-items` | `data-agent-api.md` | `data-agent-mcp.md` |
+| `Dataflow` | `data-items` | `dataflow-api.md` | `data-pipeline-mcp.md`, the DataFactory server |
+| `DataPipeline` | `data-items` | `data-pipeline-api.md` | `data-pipeline-mcp.md`, the DataFactory server |
+| `Environment` | `data-items` | `environment-api.md` | |
+| `Eventhouse` | `rti-items` | `eventhouse.md`'s *Read first* row: one part, the generic seven | `remote-mcp.md` |
+| `EventSchemaSet` | `rti-items` | `event-schema-set-api.md` | none |
+| `Eventstream` | `rti-items` | `eventstream-api.md` | `eventstream-mcp.md`, the local Real-Time Intelligence server |
+| `GraphModel` | `iq-items` | `graph-model-api.md` | |
+| `GraphQuerySet` | `iq-items` | `graph-queryset-api.md` | |
+| `KQLDashboard` | `rti-items` | `kql-dashboard-api.md` | none |
+| `KQLDatabase` | `rti-items` | `kql-database-api.md` | `remote-mcp.md` |
+| `KQLQueryset` | `rti-items` | `kql-queryset.md`: one part, the generic seven | |
+| `Lakehouse` | `data-items` | `lakehouse-api.md` | |
+| `Notebook` | `data-items` | `notebook-api.md` | |
+| `Ontology` | `iq-items` | `ontology-reference.md` § 1 | `ontology-mcp.md` |
+| `OperationsAgent` | `iq-items` | `operations-agent.md` | `operations-agent-mcp.md` |
+| `Reflex` (Activator) | `rti-items` | `reflex-entities.md`, `rest-and-errors.md` | `activator-mcp.md` |
+| `Report` | `pbi-items` | `report-api.md` | none |
+| `SemanticModel` | `pbi-items` | `definition-api.md` | `semantic-model-mcp.md` |
+| `SparkJobDefinition` | `data-items` | `spark-job-definition-api.md` | |
+| `SQLDatabase` | `data-items` | `sql-database-api.md` | |
+| `SQLEndpoint` | `data-items` | `sql-endpoint-api.md` | `warehouse-mcp.md`, which serves both |
+| `VariableLibrary` | `variable-library` | `variable-library-api.md` | |
+| `Warehouse` | `data-items` | `warehouse-api.md` | `warehouse-mcp.md` |
+
+An empty MCP cell means the owner records no server for the type. Every
+file is in its owner's `references/`, `data-agent-*` under
+`references/data-agent/references/`, `report-api.md` under
+`references/pbir/references/`, `definition-api.md` and
+`semantic-model-mcp.md` under `references/tmdl/references/`, and
+`data-items`' under `references/<item>/references/`: `spark/` for
+Environment, Lakehouse, Notebook and SparkJobDefinition, `warehouse/`
+for SQLEndpoint and Warehouse, and the item's own folder for the rest.
+`rti-items`' are under `references/<item>/references/` too:
+`eventhouse/` for Eventhouse and KQLDatabase, whose `eventhouse.md` is
+one level up, `kql-queryset/` for KQLQueryset, whose file sits at that
+level, and the item's own folder for the rest, `activator/` for Reflex.
+
+**Any other item type has no owner here**: CopyJob, MirroredDatabase,
+GraphQLApi and the rest. [other-item-types.md](references/other-item-types.md)
+links each one's folder in
+[`microsoft/fabric-rest-api-specs`](https://github.com/microsoft/fabric-rest-api-specs)
+and its Learn definition page. The
+[JSON schema index](https://github.com/microsoft/json-schemas/tree/main/fabric/item)
+has a part's schema where one is published. The platform-wide MCP
+servers are [fabric-mcp.md](references/fabric-mcp.md)'s.
+
+**`getDefinition` is not the Git serialization.** Where Git holds a
+logicalId or a relative path, a live definition can hold a runtime id or
+a connection: a report's `datasetReference` is `byConnection` live and
+`byPath` in Git, `.platform`'s `logicalId` is all zeros live, and a KQL
+database's `parentEventhouseItemId` is the eventhouse's runtime id live
+and its logicalId in Git (each seen once by `getDefinition`, 2026-10-12;
+the KQL one as Learn's definition and Git integration pages say, Git's
+`byPath` as the
+[report project page](https://learn.microsoft.com/power-bi/developer/projects/projects-report)
+says, read 2026-11-07, so the live `byConnection` and a report's zeroed
+`logicalId` stay observed alone: the
+[ontology definition page](https://learn.microsoft.com/rest/api/fabric/articles/item-management/definitions/ontology-definition)'s
+`.platform` sample shows one for an ontology item only; a dashboard's
+data source differs the same way, per `rti-items`'
+`realtime-dashboard.md`). Normalize
+those before diffing a live item against its folder.
+
+## Git Integration APIs
+
+A Git-connected workspace is synced to one commit while its branch may be
+at another, and
+[Get Status](https://learn.microsoft.com/rest/api/fabric/core/git/get-status),
+`GET /v1/workspaces/{wsId}/git/status`, returns both: `workspaceHead`, the
+commit the workspace is synced to, `remoteCommitHash`, the branch head, and
+`changes[]`, each carrying `workspaceChange`, `remoteChange` and
+`conflictType`. A side with no change reads `null`, where Learn's
+examples leave the key out, so `has("remoteChange")` counts every entry
+as incoming: test the value (114 entries in one client estate,
+2026-10-12 and 2026-10-13). `conflictType` is always set, to `None`,
+`Conflict` or `SameChanges`, the same change on both sides (Learn, read
+2026-10-13); whether an update stops on `SameChanges` is unmeasured.
+Heads that differ, with no `remoteChange` on any entry,
+are the normal state after a push that changes no item folder, and the
+workspace still commits (observed 2026-10-01). A workspace stranded on
+`Git_HeadNotSynced` shows differing heads too:
+[gotchas.md](references/gotchas.md)'s row for that error holds its
+likelier cause, how sure that is, and the missing button.
+
+[Update From Git](https://learn.microsoft.com/rest/api/fabric/core/git/update-from-git),
+`POST …/git/updateFromGit`, updates only the items the incoming commits
+changed. It requires `remoteCommitHash`; `workspaceHead` is checked
+against the service's own head, failing `WorkspaceHeadMismatch`, and may
+be null only right after Initialize Connection. It will not start with
+items in conflict and no `conflictResolution`, nor with incoming items
+present and `options.allowOverrideItems` not `true`. **By Learn, then,
+the two hashes alone apply only an update that brings no item**, as the
+`Git_HeadNotSynced` fix in [gotchas.md](references/gotchas.md) did once
+(2026-09-30); the refusal itself is unmeasured. Send the flag, as both
+of Learn's examples and Microsoft's `GitIntegration-UpdateFromGit.ps1`
+sample do (read 2026-10-13), and keep the safety in `changes[]`: stop on
+any `conflictType` of `Conflict`, and add a `conflictResolution` only on
+purpose. In one client estate the flag overwrote nothing outside the
+incoming set: across 12 updates, every item holding uncommitted work the
+incoming commits did not touch still read `Modified` after (2026-10-12
+and 2026-10-13).
+
+```json
+{ "workspaceHead": "<git/status workspaceHead>", "remoteCommitHash": "<git/status remoteCommitHash>", "options": { "allowOverrideItems": true } }
+```
+
+Per-item options go in `options.itemOptionsByLogicalId`, each entry a
+`logicalId` and the options that item type's Update Definition takes, as
+in Learn's `validateOnly: true` example; deployment pipelines have the
+twin, `itemOptionsBySourceItemId` (`deploy`'s
+`references/deployment-pipelines.md`).
+
+A deployment plan (Beta) can orchestrate the update: `?beta=true` on the
+URL and `options.deploymentPlan`, which Learn says then controls item
+deployment ordering and runs pre- and post-deployment actions. Only the
+`ByLogicalId` reference type is supported here, as
+`{ "referenceType": "ByLogicalId", "logicalId": "<plan item logicalId>" }`
+(Learn, read 2026-10-31; never called here). Deploy Stage Content takes
+its plan differently: `deploy`'s `references/deployment-pipelines.md`.
+
+- **Both calls need the caller's Git credentials.**
+  `GET …/git/myGitCredentials` answers `source`: `Automatic`,
+  `ConfiguredConnection` (with a `connectionId`) or `None`; on `None`, set
+  them with Update My Git Credentials first. A service principal sets
+  `ConfiguredConnection` with its own token, naming an *Azure DevOps –
+  Source Control* connection shared with it or created through the
+  Connections API with its credentials. Learn gives no GitHub route: its
+  end-to-end tutorial says there is none yet, though one sample heading
+  names it (read 2026-10-13, unmeasured). Update From Git takes a service
+  principal only where every item involved supports one.
+- **Both are long-running**: `200`, or `202` with `Location`,
+  `x-ms-operation-id` and `Retry-After`, polled as *Long-Running
+  Operations (LRO)* says, and invisible through `az rest`, as it also
+  says. Learn says not to call Get Status while an update runs. One
+  update, observed 2026-09-30, answered `202` with `Retry-After: 20` and
+  finished in under a second; its `Location` named a regional cluster
+  host, not `api.fabric.microsoft.com`, and polling
+  `/v1/operations/{x-ms-operation-id}` on the base URL worked. Polling
+  that `Location` itself works too, with the same bearer, and `/result`
+  appended to it fetches the result (four operations, 2026-10-12).
+
+[Commit To Git](https://learn.microsoft.com/rest/api/fabric/core/git/commit-to-git),
+`POST …/git/commitToGit` (scope `Workspace.GitCommit.All`), commits by
+`mode`: `All`; `Selective`, with `items`, each a `logicalId` or `objectId`;
+or **`FileLevelSelective`** (preview), with `itemsWithFileSelection`, each
+item plus `selectedFiles` — paths relative to the item root, forward
+slashes, no wildcards, an empty list meaning every file. Get Status with
+`?includeFilesDetails=true` lists those paths: each item gains a
+`fileChanges[]` whose entries carry a `path` and the three change fields
+(Learn, read 2026-10-13; never called here). Pass
+`workspaceHead` from `git/status`. It needs the same Git credentials and is
+long-running like the two calls above. Committing only some of an item's
+files can leave its definition incomplete (Learn, 2026-10-06).
+
+**Re-read `git/status` after Update From Git, and commit `Selective`.**
+One update of six items left two reading `workspaceChange: Modified`
+that nobody had edited: a KQL database whose `DatabaseSchema.kql` held
+the branch's lines in another order, and a report whose `.platform`
+`description` the update had not applied (2026-10-12, cause unknown). A
+`mode: All` commit would have written both back over the branch.
+
+**A branch move is a reconnect.** Connect refuses a connected workspace
+(`WorkspaceAlreadyConnectedToGit`) and does not sync. So push a branch
+cut at `git/status`'s `workspaceHead`; keep `myGitCredentials`'
+`connectionId` and the old `gitProviderDetails`; call `git/disconnect`,
+a POST with no body, then `git/connect` with those, the new `branchName`
+and `myGitCredentials` (required for GitHub), then
+`git/initializeConnection` with `PreferWorkspace`. On one GitHub run that
+kept uncommitted work uncommitted and answered
+`requiredAction: CommitToGit` (2026-10-12): commit `Selective`, as above.
+Connect and Disconnect take workspace Admin, and nothing is connected
+between them: script the rollback first. Disconnecting stops nothing in
+the workspace: a schedule bound to a Variable Library ran, and read its
+variable, on time after it (observed once, 2026-10-13; Learn's disconnect
+steps are silent on schedules, read 2026-11-07). Connect also sets
+`connectionSettings.additionalRolesAuthorizedToChangeBranch` to `None`,
+admins only, unless the body passes it, and Get Connection does not
+return it: pass it on every connect where non-admins switch branch.
+Get Connection does return `gitConnectionType`: `Full`, every item in
+the branch synced, or `Selective`, only those a user picked; how Get
+Status and Update From Git behave on a selective connection is
+unmeasured (Learn, read 2026-10-13).
+
+**`git/status` types items outside its documented enum.** One call
+(2026-09-30, one tenant) typed a semantic model, a Plan and a SQL
+database as `dataset`, `Planning` and `SQLDbNative`, where Learn's
+`ItemType` lists `SemanticModel`, `Plan` and `SQLDatabase`, and none of
+the three (re-read 2026-10-01). Two calls on 2026-10-01 added a User
+Data Functions item as `FunctionSet` and a report as `report`
+(`UserDataFunction`, `Report` on Learn), and repeated `dataset` and
+`SQLDbNative`. Four on 2026-10-12 added a KQL database, a notebook and a
+variable library as `KustoDatabase`, `SynapseNotebook` and `Variables`
+(`KQLDatabase`, `Notebook`, `VariableLibrary`). Reads in a client estate
+on 2026-10-12 and 2026-10-13 added an Activator, a KQL queryset and a
+pipeline as `ReflexProject`, `KustoQueryWorkbench` and `Pipeline`
+(`Reflex`, `KQLQueryset`, `DataPipeline`, re-read 2026-10-13). A script
+filtering `changes[]` on documented type names
+skips those items without a word, case-insensitively too. Match on
+`itemMetadata.itemIdentifier` instead: `logicalId` where present, else
+`objectId`. Learn requires one of the two, and its example of an item
+added in the workspace carries only `objectId`; one such item on
+2026-10-12 carried both, and a `Selective` commit took both.
+
+## Job Execution
+
+```
+POST /v1/workspaces/{wsId}/items/{itemId}/jobs/instances?jobType={jobType}
+```
+
+For a notebook, Learn's public-API page gives a second URL,
+`POST /v1/workspaces/{wsId}/notebooks/{notebookId}/jobs/execute/instances?jobType=RunNotebook`,
+with `?beta=true` on the status GET under the same `…/instances/{jobInstanceId}`
+(Learn, read 2026-10-31). The query form above is still documented, so
+it is not broken. **Only the typed status read returns the run's exit
+value**, as `properties.exitValue` (measured 2026-10-23); the
+`/jobs/instances/` read carries none (2026-11-05): `data-items`'
+`references/spark/references/notebook-api.md`, *Running a notebook*.
+
+| Item Type | jobType |
+|---|---|
+| Notebook | `RunNotebook` |
+| DataPipeline | `Pipeline` |
+| SparkJobDefinition | `SparkJob` |
+| SemanticModel | `Refresh` |
+
+**Gotcha**: `DefaultJob` does NOT work for most item types. Use the type-specific value above.
+
+## Job Scheduling
+
+```
+POST /v1/workspaces/{wsId}/items/{itemId}/jobs/{jobType}/schedules
+```
+
+URL path is `/jobs/{jobType}/schedules` — NOT `/jobs/instances/schedules`. Body:
+
+```json
+{
+  "enabled": true,
+  "configuration": {
+    "startDateTime": "2026-01-01T06:00:00.000Z",
+    "endDateTime":   "2027-01-01T06:00:00.000Z",
+    "type": "Daily",
+    "localTimeZoneId": "UTC",
+    "times": ["06:00"]
+  }
+}
+```
+
+`enabled`, `configuration.startDateTime`, `configuration.endDateTime`,
+and `configuration.type` are all required. Omitting `endDateTime`
+returns 400. `type` ∈ `Cron | Daily | Weekly | Monthly` (Learn's Create
+Item Schedule, read 2026-10-13); `Cron` takes `interval`, in minutes and
+not a cron expression, and `Weekly` also requires `weekdays` (array of
+day names). List with `GET .../schedules`; delete with
+`DELETE .../schedules/{scheduleId}`.
+
+List Item Schedules also returns an `enabledDetail` that Learn's
+`ItemSchedule` lacks (read 2026-10-14): `enabledControlType`
+(`UserEnabled`, or `VariableReferenceManaged` where a Variable Library
+sets on/off, per `data-items`' `data-pipeline.md` § 7), `enabledEvalState`
+(`Normal` so far, on and off alike) and, when bound,
+`nextResolveVariableReferenceDateTime`, when the schedule next reads its
+variable. After Git sync brought a binding, `enabledEvalState` and the
+next read stayed `null` until the first read, 20 to 40 minutes after
+`createdDateTime`: wait for `enabledEvalState` before judging one (a
+client estate, 2026-10-13, on pipeline schedules). Update Item Schedule
+cannot set the control type; what its required `enabled` does to a
+bound schedule, `enabledEvalState`'s other values and other item types'
+`enabledDetail` are unread.
+
+## Rate Limiting
+
+`429 Too Many Requests` includes a `Retry-After` header (seconds). Honor it; never tight-loop. Use exponential backoff with jitter when `Retry-After` is absent.
+
+| Category | Approximate limit |
+|---|---|
+| Admin APIs | Varies by endpoint — 200/hour (List Items, List Workspaces, activity events), 25/min (domains, tenant settings, role assignments), 25/hour (bulk labels). Check the endpoint's own Throttling section |
+| OneLake (ADLS) | Standard Azure Storage throttling, per workspace |
+| Warehouse TDS | ~128 concurrent connections (varies by SKU) |
+
+**Two limits apply to every call.** A per-identity **unified quota** is evaluated *and* the endpoint's own limit — most restrictive wins, and a quota on the endpoint's reference page is authoritative for it. Platform and Long-Running Operations APIs get 500 calls/min each and Job Scheduler 200, in independent buckets, and the 60-second window refills all at once, so bursting at the start leaves you throttled for the rest of it. A `429` carries one of two `errorCode`s: `RequestBlocked` (your request rate — honour `Retry-After`) or `CapacityLimitExceeded` (the tenant's capacity is overloaded — retrying immediately will not help). (Verified 2026-10-30.)
+
+Responses carry no general remaining-quota counter, so a client backs off on the `429` itself and spreads its requests across the window.
+
+## Capacity
+
+- `GET /v1/capacities` — list available capacities. Filter `state == "Active"`.
+- `POST /v1/workspaces/{wsId}/assignToCapacity` with `{ "capacityId": "..." }` — assigns workspace to capacity.
+- Lakehouse, Warehouse, Notebook execution, and Spark Job Definitions all require workspace capacity. Without it, item creation returns `FeatureNotAvailable`.
+- After assignment, verify `GET /v1/workspaces/{wsId}` shows `capacityAssignmentProgress: "Completed"` before creating capacity-dependent items.
+
+## Pagination
+
+All list APIs use continuation-token pagination. Keep calling with `?continuationToken={value}` until the token is null. The response also includes `continuationUri` — the fully-formed next-page URL — which you can call directly without re-constructing the query string. The token itself is opaque; never modify it.
+
+## Reference
+
+- Microsoft Learn: [Item management overview](https://learn.microsoft.com/rest/api/fabric/articles/item-management/item-management-overview)
+- Microsoft Learn: [Long-running operations](https://learn.microsoft.com/rest/api/fabric/articles/long-running-operation)
+- Microsoft Learn: [Throttling](https://learn.microsoft.com/rest/api/fabric/articles/throttling)
+- Comprehensive MS Learn link bundle (concept / CRUD / LRO / pagination / throttling / jobs / item-specific / workspace / Git+CI/CD / MCP): [references/REFERENCE.md](references/REFERENCE.md)
