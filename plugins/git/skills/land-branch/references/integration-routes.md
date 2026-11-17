@@ -1,0 +1,434 @@
+# Integration routes
+
+Everything behind step 7's routing table: why the default is the
+default, how to read what `main` requires and why a refusal cannot tell
+you, the `gh api` settings read with its `null` caveat, the refspec
+mechanics of the no-checkout route and its two silent traps, what it
+costs to honour a request for a squash or a merge commit and the message
+each passes, why the PR route is not the async merge API and a stack not
+this skill's, and how step 8 reads what landed.
+
+Read this **before the step 6 disclosure** whenever the run is taking
+anything but the default `--ff-only` route. Step 6 has to state which
+route step 7 will take, so the mechanics have to be in hand while that
+disclosure is being written, not after.
+
+## Why not each alternative
+
+**A written convention outranks the default; the history's shape is
+not one.** Read the repo's `CONTRIBUTING.md` and agent instructions
+before step 6, as `commit-changes` step 4 may already have. Where they
+name a mechanism, propose it; a fast-forward stays the default only where
+they say nothing. `git log --merges` shows what has landed, not what
+the repo wants: on 2026-09-24 a `0` there talked a landing into the
+fast-forward beside a `CONTRIBUTING.md` asking for a merge commit, and
+the user corrected it.
+
+- **The merge button** — whatever it is configured to do, it is not
+  this. Check what the repo actually offers before assuming the button
+  was an option at all: where only squash is enabled, the button can
+  *only* do the one thing this skill refuses, so there is no version of
+  pressing it that preserves the split.
+- **A merge commit** — adds a commit to a history that may never have
+  had one, and collapses nothing: every SHA survives. `git log --merges
+  --oneline origin/main | wc -l` from step 1 says what the history has
+  done so far, not what the repo wants: a `0` may mean only that no
+  multi-change branch has landed yet, so it never outweighs a written
+  convention.
+  Asked for, or written into the repo's documents, it costs a clause of
+  disclosure and not a round — see [Merge commit](#merge-commit--one-clause-and-proceed).
+- **Squash** — collapses the logical split `commit-changes` just built. The
+  whole point of separate commits is that each is independently
+  revertible and citable. Asked for anyway? It is overridable, but not
+  silently — see [Squash](#squash--the-full-round).
+- **Rebase merge** — rewrites SHAs, and may be disabled outright.
+
+## Reading the repo's merge settings
+
+Read the merge settings rather than assuming them — and read
+`delete_branch_on_merge` in the same breath, which step 6's disclosure
+needs and which is no more uniform across repos than the other three.
+**Prefer a committed answer where the repo keeps one** — a repo that
+version-controls its own settings in `.github/repo-settings.json`, the
+file `audit-repo`'s `repo-settings.ps1` writes, holds all four and gives you the
+value someone intended, for free. Otherwise ask GitHub:
+
+```bash
+gh api repos/<owner>/<repo> \
+  --jq '{allow_squash_merge, allow_merge_commit, allow_rebase_merge, delete_branch_on_merge}'
+```
+
+Unauthenticated, those fields come back `null` — so a check without a
+token proves nothing and a rejection surfaces at merge time. A repo's
+answer is not durable either: a delete-and-recreate resets every one of
+them to GitHub's defaults, so a committed file and the live repo can
+disagree after one. When they do, the live repo is what the merge obeys
+and the committed file is what needs reapplying.
+
+**`delete_branch_on_merge` is for planning only.** Step 9 probes the
+remote ref instead of acting on this value, and
+[branch-deletion.md](branch-deletion.md) says why.
+
+## Pinning the write to one SHA
+
+"Checks passed" is a fact about a SHA, a merge is an action on a ref,
+and the ref can move between them — a workflow that pushes to PR
+branches, a peer committing onto your local branch, the author. That is
+why step 7 reads the PR head once, immediately before integrating, and
+every route refuses any other: unpinned, a moved head lands a commit CI
+never validated and nothing reports it. On the two local routes a
+workflow's push also stays off `main`, since what lands is the local
+tip rather than the PR head, and the PR stays open because its head is
+not reachable. A mismatch is the answer rather than an error to retry:
+find which side moved — `git log <sha>..<branch>` for the local branch,
+`git fetch origin pull/<n>/head` for the PR — before anything else.
+
+**`gh`'s refusal is exercised.** On a private scratch repo, with gh
+2.103.3 and a push after the pin, `--match-head-commit <old>` answered
+`GraphQL: Head branch was modified. Review and try the merge again.
+(mergePullRequest)`, exit 1, and the PR stayed open with `main` unmoved
+(2026-11-02). `expectedHeadSha` has been exercised once, in the pass
+direction (2026-09-22); its refusal is API-documented and not exercised.
+
+## Why the PR route is not the async merge API
+
+**The route stays on `gh pr merge`, which GitHub no longer recommends and
+has not deprecated.** gh 2.103.3 calls GraphQL `mergePullRequest`, and
+`merge_pull_request` calls the synchronous REST endpoint (their source,
+read 2026-11-02). Both pages say "We recommend using the asynchronous
+merge" API, `PUT /repos/{owner}/{repo}/pulls/{pull_number}/merge-async`,
+and neither gives an end date (read 2026-11-02).
+
+Moving would cost more than it buys here, by its docs; none of this has
+been run:
+
+- **It returns before merging**: a 202 and a UUID, with rules not run at
+  that stage and a result kept 24 hours. Step 8's read right after the
+  merge would become a poll.
+- **No tool wraps it.** It would be `gh api -X PUT`, and the MCP route
+  would go.
+- **What it adds goes unused**: stacks, below, and queueing, which
+  `gh pr merge` already does where a branch requires a merge queue, by its
+  help. The sync endpoint's page says it does not support a queue, so on
+  such a branch `merge_pull_request` is not the route.
+
+**Reopen this** on a gh release that calls `merge-async`, or a deprecation
+notice for either route.
+
+### A stack is not this skill's route
+
+**On a stacked pull request, stop, and name `gh stack` or the PR's merge
+box.** This skill lands one branch, and a stack does not fit it, by
+GitHub's docs (read 2026-11-02):
+
+- Both `gh pr merge`'s mutation and the sync endpoint say they do not
+  support stacks, and `merge-async` merges "all open downstack pull
+  requests" with the one asked for.
+- A merge commit lands per pull request, which breaks the counts in
+  § "Verifying what landed". The stack must also have a fully linear
+  history, and only its bottom pull request can merge by bypass.
+
+**Nothing here reads a stack directly**: `gh pr view --json stack` answers
+`Unknown JSON field: "stack"`, and no listed field names one (gh 2.103.3,
+2026-11-02). A `baseRefName` other than `main` hints at a pull request
+above the bottom, and a bottom one reads like any other. What
+`gh pr merge` prints on a stacked pull request is unmeasured.
+
+## Verifying what landed
+
+Step 8 reads `origin/main` against two pins: step 1's `<base>`, where
+`main` stood before the landing, and step 7's `<sha>`, the head that was
+to land. Until 2026-09-29 it counted merges from HEAD, which the refspec
+push and the PR merge both leave on the branch: the count could only
+pass the first, and read `0` after the second, where its merge commit
+makes `1`. Probes flagged that unprompted on 2026-09-23, 2026-09-25 and
+2026-09-29. Reproduced 2026-09-29 against a bare origin on git 2.55,
+with a second clone doing the server's merges:
+
+| Route | From HEAD, step 1 → 8 | `<base>..origin/main` merges | `--is-ancestor <sha> origin/main` |
+| --- | --- | --- | --- |
+| Default fast-forward | 0 → 0 | 0 | 0 |
+| Refspec push | 0 → 0 | 0 | 0 |
+| Refspec push, then someone else's merge | 0 → 0 | 1 | 0 |
+| PR merge, `--merge` | 0 → 0 | 1 | 0 |
+| PR merge, after another PR merged | 0 → 0 | 2 | 0 |
+| Squash | 0 → 0 | 0 | 1 |
+| A branch carrying its own merge, fast-forward | 1 → 1 | 1 | 0 |
+| Refspec push from a linked worktree | 0 → 0 | 0 | 0 |
+
+**Expect the branch's own merges, plus one where a merge commit was the
+route**; the branch's own is usually `0`:
+
+```bash
+git log --merges --oneline <base>..<sha> | wc -l   # the branch's own
+git log --merges --format=%s <base>..origin/main   # each merge that landed, by subject
+```
+
+**Only the ancestor check sees a squash or a rebase merge**: each
+rewrites the pinned head and adds no merge. **A count past that is
+`main` moving under the PR merge**, which lands on a moved `main` where
+both fast-forward routes refuse; the second command lists each, and the
+subject step 7 composed marks yours. **Each pin needs its fetch**: a
+`<base>` read from a stale `origin/main` counts whatever landed since
+the last fetch, and step 8's own fetch is what brings a server-side
+merge in.
+
+**Local `main` is a separate check.** A plain fetch moves `origin/main`
+alone, and with no fetch at all the PR merge passed
+`git rev-parse main origin/main` on two stale lines (2026-09-23);
+`git fetch origin main:main` moves both, and is refused where `main` is
+checked out ([linked-worktree.md](linked-worktree.md)). `--short` takes
+exactly one revision and fails `fatal: Needed a single revision`, exit
+128 — run twice in one landing before the error was read rather than
+retried (2026-09-22; reproduced 2026-09-23, git 2.55).
+
+## Reading what `main` requires
+
+**Route on what `main` requires, never on whether a push is refused.**
+A refusal is the branch's rules *minus their bypass list, evaluated for
+the account that pushes* — so for an account that can bypass, the
+rejection that would have sent the run to the PR merge never comes. Its
+push to a protected `main` succeeds, skips every required check, and
+reports success. Succeeding is the failure mode. In a small estate the
+account doing the work is routinely an admin, which makes this the
+common case rather than an edge.
+
+That account is a fourth identity beside the three step 2 probes: git
+pushes through its credential helper, and
+`git config --get credential.https://github.com.username` names the
+account where one is pinned. It decides whether a push is refused and
+says nothing about what the repo requires — the other reason a push
+must not pick the route.
+
+The evidence is one client repo's ruleset, read 2026-09-22 and relayed
+rather than re-read here: `pull_request` and a required status check on
+`main`, with the admin role in the bypass list at mode `always`. The
+argument needs only that *some* bypass actor exists.
+
+Read both of GitHub's systems, each from the one endpoint that answers
+for it alone. The branch's own `protected` flag stands in for neither:
+it read `true` on a `main` with an active ruleset and no classic
+protection, and `false` beside a disabled ruleset (2026-10-22), and
+GitHub documents its `protected` filter as "branch protections or
+rulesets":
+
+```bash
+gh api repos/<owner>/<repo>/rules/branches/main --jq '[.[].type]'
+gh api repos/<owner>/<repo>/branches/main/protection --jq '.required_pull_request_reviews != null'
+```
+
+The first returns every **active** rule on `main` from rulesets at any
+level, repository or organization, and omits rulesets set to *evaluate*
+or *disabled*; a `pull_request` in it means `main` requires one. The
+second is classic branch protection, which can require a pull request
+too: `true` means it does. HTTP 404 with `Branch not protected` means
+there is none (an admin token, 2026-10-22). Any other failure is a token
+that cannot read the endpoint, untested, and should treat `main` as
+requiring one — the PR merge is correct either way, at the cost of a
+disclosed merge commit. On the repo this skill is authored in both
+systems read empty (2026-09-23): consistent, and discriminating nothing.
+
+A ruleset's `current_user_can_bypass` — `always`, `pull_requests_only`,
+`never` or `exempt` — explains why a push got through, but it is
+evaluated for gh's token, not for the credential git pushes with. It is
+a diagnosis, never a route.
+
+**`required_linear_history` beside a pull-request rule is a stop.**
+GitHub documents that pull requests into such a branch "must use a
+squash merge or a rebase merge", so `--merge` is unavailable and every
+route that respects the gate writes new SHAs — a rebase merge keeps the
+split under them, a squash collapses it. Name which, as for a requested
+[squash](#squash--the-full-round), then wait. Documented, not exercised.
+
+## `--admin`: a merge past an unmet rule
+
+**Where a rule on `main` stays unmet and only the bypass merges, `gh pr
+merge` needs `--admin`, and it goes in only on the user's yes for that
+pull request.** The case is the solo stage `audit-repo`'s
+`references/profiles.md` describes: a code owner's review required,
+self-approval blocked, and one maintainer, so the plain command is
+refused. Once the required checks pass on the pinned head, read why:
+
+```bash
+gh pr view <n> -R <owner>/<repo> --json reviewDecision,mergeStateStatus
+```
+
+`REVIEW_REQUIRED` with `BLOCKED` is the review left unmet. **Step 6
+names each rule left unmet**, the review and any check, as what the
+merge skips, and asks for `--admin` by name; afterwards the report says
+no one reviewed it. The flag skips only the unmet rules and keeps every
+other pin:
+`gh pr merge <n> -R <owner>/<repo> --admin --merge --match-head-commit <sha> --subject … --body …`
+merged in an organization repo where the author was the sole code
+owner, and step 7's checks then held: the pull request `MERGED` by the
+confirmed account, `--is-ancestor` exit 0, one merge in
+`<base>..origin/main` (gh 2.101.0, 2026-10-27). Nine of nine pull
+requests in a second such repo went in that way, by its only
+developer's knowing choice (2026-10-26).
+
+**Auto mode denies the bypass merge unless an ask rule covers it.** The
+classifier refused `gh pr merge … --admin`, retry included, as
+`[Merge Without Review]`, though the user had said to merge; with an
+ask rule on `gh pr merge` each of the next seven showed a prompt and
+went through on the user's yes (2026-10-26, 2.1.311). Claude Code's
+docs say a content-scoped ask rule "is evaluated before the classifier
+and always force[s] a permission prompt, even in auto mode"
+(code.claude.com/docs/en/auto-mode-config, § "Add a human checkpoint",
+read 2026-10-27). The user-scope payload carries `Bash(gh pr merge *)`
+and `PowerShell(gh pr merge *)` asks since 2026-10-28, the pattern
+`audit-agent-setup`'s "ask before X" row describes. A cold `claude -p`
+probe in auto mode, from outside any repo, had `gh pr merge --help`
+denied through each tool and ran `gh pr view --help`, the control
+(Haiku 5.5, 2026-10-28). A rule matches the
+command as written, so the merge runs as a command of its own, never
+after `&&`. **Each twin route asks too**, since 2026-11-03: the REST
+merge path and the `mergePullRequest`, auto-merge and merge-queue
+mutations, by any client in either shell, and `merge_pull_request` on
+any MCP server. A cold probe in default mode had each of the 12 shell
+and MCP forms denied, curl and `Invoke-RestMethod` included, while a
+Bash read of the pull request and `get_me` ran; no PowerShell control
+ran, the tool's parser failing in a `-p` child (Haiku 5.5, 2.1.317,
+2026-11-03). A query read from a file, `-F query=@<file>`, matches no
+rule. A denial is the user's to answer, never one to route
+around.
+
+Not checked: `--admin` on a repo with no bypass actor, refused or the
+plain route silently.
+
+## The no-checkout route
+
+**`git switch` is not required to move `main`.** Two writes leave HEAD
+where it is, and step 7's table picks between them on what `main`
+requires. Where it requires no pull request and **another session holds
+the tree** (step 1), the write is the branch pushed *to* `main` — the
+default's fast-forward minus the checkout. Where it **requires a pull
+request**, the write is the PR's own merge, server-side, whoever holds
+the tree. Only the first line differs:
+
+```bash
+[[ "$(git rev-parse <branch>)" == "<sha>" ]] && git push origin <branch>:main   # the write — ff-enforced
+# main requires a PR? line 1 is instead:
+#   gh pr merge <n> -R <owner>/<repo> --merge --match-head-commit <sha> --subject … --body …
+git fetch origin --quiet
+git fetch origin main:main      # moves the local main REF; HEAD untouched
+git merge-base --is-ancestor <branch> main
+```
+
+From a linked worktree the `EnterWorktree` guard refuses that first line
+as too complex to verify, so the pin moves into the refspec:
+[linked-worktree.md](linked-worktree.md#step-7-main-is-checked-out-elsewhere)
+has the two commands.
+
+**Read the requirement first; never push to find out.** Until
+2026-09-23 this said the reverse — push first, fall through to the PR
+merge on a rejection — because the server-side `--merge` adds a merge
+commit that a shared tree alone does not need. That cost is real and is
+still disclosed, in [one clause](#merge-commit--one-clause-and-proceed).
+But push-first sent an account that can bypass straight past the gate,
+with no rejection to fall through on. **Pass `-R <owner>/<repo>` on the
+PR merge**: it clears gh's `CanDeleteLocalBranch`, which gates every
+local-git path, so the merge cannot switch the tree; step 9 owns the
+delete. Read in gh v2.101.0.
+
+Both refspec forms **refuse a non-fast-forward without a leading `+`**
+— `! [rejected] <src> -> main (non-fast-forward)`, exit 1 — so neither
+can rewrite `main`, only advance it. **Never add the `+`**; that is the
+`--force` of this route. The fetch has one more (pair reproduced
+2026-09-16, push 2026-09-17 on git 2.55):
+
+- **It refuses to update a branch that is currently checked out** in a
+  non-bare repo: `fatal: refusing to fetch into branch
+  'refs/heads/main' checked out at ...`, exit 128. So it is legal
+  *precisely* when someone else's branch is HEAD, and it fails loudly
+  in the one case where it would be unsafe. Refused, it moves no ref,
+  `origin/main` included, so step 8's two lines can still match, stale,
+  and prove nothing. Leave `main` to whoever has it checked out, and say
+  so (measured 2026-09-23, git 2.55).
+
+This route is still gated by step 6: whichever line writes `main`, the
+push or the PR merge, is the write, whoever performs it.
+
+## Overriding the default — never silently
+
+A squash and a merge commit are **defaults, not laws.** The history is
+the user's to shape. But the two do not cost the same, so they do not
+get the same gate: one calibrated for the expensive mechanism turns the
+cheap one into ceremony, and guidance that is annoying to follow
+correctly gets followed loosely.
+
+### Squash — the full round
+
+**A squash keeps the full round.** It collapses the logical split
+`commit-changes` just built, and that is not recoverable.
+
+1. **Say what it costs, specifically.** Name the commits that would be
+   collapsed — not "squashing loses information" but "this collapses 3
+   commits that separate the rule change from its fixtures".
+2. **Then wait.** A request that named the mechanism up front has not
+   heard the cost yet, so it is not yet a reaffirmation. One round.
+3. **Record it in the PR body**, so the history explains its own shape.
+4. **Carry the message over.** Pass the title and body `commit-changes`
+   wrote — `--subject` and `--body` (gh), `commit_title` and
+   `commit_message` (`merge_pull_request`) — rather than the server's
+   default, which a repo setting decides. Relayed from a 2026-09-22
+   landing: the default replaced the body with a commit list.
+
+Then do it. A reaffirmed instruction is the answer; pressing the point
+twice is worse than the squash.
+
+**A one-commit branch has nothing to collapse**, so its squash gets a
+merge commit's treatment instead — one clause, then proceed. The clause
+is the new SHA, which costs something only where step 1 found a branch
+cut from your tip (below). A 2026-09-22 landing took this exemption
+unasked, and the principle above — a gate calibrated for the expensive
+mechanism turns the cheap one into ceremony — says it was right to.
+
+**Squash has a second cost whenever someone branched from your tip**,
+and that one is not about your history. Preserving the SHAs —
+`--ff-only` or a merge commit, either — leaves their base reachable
+from `main`, so `git log main..<their-branch>` comes back empty and
+their branch sits on `main` with nothing to rebase. A squash writes a
+new SHA, leaving your commits unreachable from `main`: their branch
+carries them as duplicates and their next PR re-proposes your whole
+diff as theirs. Step 1's `git branch -vv` is what shows this — a branch
+tip equal to your own (observed 2026-09-15).
+
+### Merge commit — one clause and proceed
+
+**A merge commit gets one clause and proceeds.** It collapses nothing:
+every SHA survives, and every commit stays independently revertible and
+citable. Its whole cost is one extra commit and a non-linear graph — so
+state that and step 1's `--merges` count in the same turn, record
+it in the PR body, and do it. **No wait**, because the round cannot
+tell the operator anything the clause did not, and holding one is the
+"pressing the point twice" this section already warns against. Reasoned
+2026-09-16, on a repo whose baseline was already `1`.
+
+**Compose its message, as for a squash.** Left unset, GitHub builds it
+from the repo's `merge_commit_title`, and `MERGE_MESSAGE`, which the
+repo this skill is authored in holds, gives the classic title,
+`Merge pull request #<n> from <owner>/<branch>`. GitHub's REST docs
+abbreviate it as "from branch-name"; real titles carry the head repo's
+owner, as microsoft/vscode's do (read 2026-09-29). On an organization's
+repo that is the organization's account name, which may stand in its own
+repo's `main` (2026-10-16), but the server writes it where no local check
+reads it: an `identity-guard` hook, where installed, reads only the text
+a session sends. Relayed from
+a client repo, 2026-09-27: its two earlier merges through this route
+named the org, and the two landed that day with `--subject` did not.
+Pass it anyway, by the rule below:
+
+- `gh`: `--subject "Merge pull request #<n> from <branch>"` and
+  `--body "<PR title>"`
+- `merge_pull_request`: the same two as `commit_title` and
+  `commit_message`
+
+A repo's `merge_commit_title` set to `PR_TITLE` does it per repo, but
+that is a settings change, and the user's call. The rule is general:
+wherever the server would compose a message — a merge title, a squash
+body, a revert title — compose it.
+
+One trap in carrying that out: **`git merge -F -` does not read
+stdin.** It fails `error: could not read file '-'` (exit 129) where
+`git commit -F -` succeeds, so a merge message has to go through a real
+file. Reproduced 2026-09-16.

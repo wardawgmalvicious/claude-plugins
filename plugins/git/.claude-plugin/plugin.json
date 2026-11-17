@@ -1,0 +1,12 @@
+{
+  "name": "git",
+  "description": "Git workflow for Claude Code: split working-tree changes into logical commits, review code before it lands, land a branch through a pull request under the right GitHub account, and audit which branches are safe to delete.",
+  "author": {
+    "name": "wardawgmalvicious",
+    "url": "https://github.com/wardawgmalvicious"
+  },
+  "homepage": "https://github.com/wardawgmalvicious/claude-plugins",
+  "repository": "https://github.com/wardawgmalvicious/claude-plugins",
+  "license": "MIT",
+  "keywords": ["claude-code", "git", "code-review", "pull-request"]
+}
