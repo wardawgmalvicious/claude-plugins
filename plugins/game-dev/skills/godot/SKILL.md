@@ -28,7 +28,8 @@ and engine source at `godotengine/godot/4.7.2-stable/` on the same host,
 as `doc/classes/<Class>.xml`, and GodotSteam's at
 `curl -s https://codeberg.org/godotsteam/godotsteam-docs/raw/branch/master/docs/<path>.md`.
 A live page that contradicts a line here wins: say so, act on the page,
-and route the fix by `capture-learning`, bar a dated measured line that
+and route the fix by `capture-learning` where it is installed, else tell
+the user, bar a dated measured line that
 names the page it overrules and the call that measured it, which a page
 changed since its date sends back to re-measure. An observed claim is
 cited or marked pending a doc check, and stands, marked observed, only
@@ -200,8 +201,10 @@ there, not in git.
 ## 6. Pixel art
 
 The docs' recipe for pixel art (multiple_resolutions.rst, read
-2026-11-16), each setting's meaning from the ProjectSettings reference
-(read 2026-11-16):
+2026-11-16) sets the `[display]` lines and gives the quoted reasons;
+the `[rendering]` two, and the rest of each setting's meaning, are from
+the ProjectSettings reference (read 2026-11-16), Nearest being this
+skill's choice, not a page's:
 
 ```ini
 [display]
