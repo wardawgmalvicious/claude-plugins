@@ -1,8 +1,9 @@
 # bash-lsp
 
 Starts the Bash language server for `.sh` files in Claude Code, so
-shellcheck's diagnostics reach Claude after each edit and it can look up
-a function's definition and references.
+shellcheck's diagnostics reach Claude after an edit (none for the
+first edit, made while the server starts) and it can look up a
+function's definition and references.
 
 ## Install the server first
 
@@ -28,5 +29,8 @@ diagnostics.
 That one step adds the marketplace too, on Claude Code 2.1.275 or
 later.
 
-**`claude plugin validate` does not read `.lsp.json`**, so a passing
-validate says nothing about whether the server starts.
+**`claude plugin validate` passes a plugin whose `.lsp.json` is
+invalid** (2.1.326): its only sign is `Provides: not listed, as a file
+could not be read` in place of the server's line, and it never checks
+that the server is on your `PATH`, so a pass says nothing about whether
+the server starts.
