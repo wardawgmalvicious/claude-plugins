@@ -1,0 +1,53 @@
+{
+  "views": [
+    {
+      "name": "Board",
+      "layout": "board",
+      "filter": "-status:Deferred",
+      "columns": "Status",
+      "fields": ["Title", "Labels", "Priority", "Reopen-when"]
+    },
+    {
+      "name": "List: Open",
+      "layout": "table",
+      "filter": "status:Open sub-issues.status:Open",
+      "fields": ["Title", "Status", "Labels", "Linked pull requests", "Sub-issues progress",
+        "Created", "Updated", "Closed", "Priority", "Reopen-when", "Work model", "Work effort",
+        "Parent issue"]
+    },
+    {
+      "name": "List: In flight",
+      "layout": "table",
+      "filter": "status:\"In flight\"",
+      "fields": ["Title", "Status", "Labels", "Linked pull requests", "Sub-issues progress",
+        "Created", "Updated", "Closed", "Priority", "Reopen-when", "Work model", "Work effort",
+        "Parent issue"]
+    },
+    {
+      "name": "List: Deferred",
+      "layout": "table",
+      "filter": "status:Deferred",
+      "fields": ["Title", "Status", "Labels", "Linked pull requests", "Sub-issues progress",
+        "Created", "Updated", "Closed", "Priority", "Reopen-when", "Work model", "Work effort",
+        "Parent issue"]
+    },
+    {
+      "name": "Parent: Open Sub: Open",
+      "layout": "table",
+      "filter": "status:Open sub-issues.status:Open",
+      "group_by": "Parent issue",
+      "fields": ["Title", "Status", "Labels", "Linked pull requests", "Sub-issues progress",
+        "Created", "Updated", "Closed", "Priority", "Reopen-when", "Work model", "Work effort",
+        "Parent issue"]
+    },
+    {
+      "name": "Parent: Open Sub: Deferred",
+      "layout": "table",
+      "filter": "status:Open sub-issues.status:Deferred",
+      "group_by": "Parent issue",
+      "fields": ["Title", "Status", "Labels", "Linked pull requests", "Sub-issues progress",
+        "Created", "Updated", "Closed", "Priority", "Reopen-when", "Work model", "Work effort",
+        "Parent issue"]
+    }
+  ]
+}

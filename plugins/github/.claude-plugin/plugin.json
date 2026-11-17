@@ -1,0 +1,12 @@
+{
+  "name": "github",
+  "description": "GitHub repository administration for Claude Code: audit a repo's settings, rulesets and community files against a policy and scaffold what it lacks, set up a Projects board for its issues, and recreate a repo after a leak was pushed.",
+  "author": {
+    "name": "wardawgmalvicious",
+    "url": "https://github.com/wardawgmalvicious"
+  },
+  "homepage": "https://github.com/wardawgmalvicious/claude-plugins",
+  "repository": "https://github.com/wardawgmalvicious/claude-plugins",
+  "license": "MIT",
+  "keywords": ["claude-code", "github", "repository-settings", "github-projects"]
+}

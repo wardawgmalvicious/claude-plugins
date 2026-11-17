@@ -1,0 +1,23 @@
+{
+  "name": "Branch-Name",
+  "target": "branch",
+  "enforcement": "active",
+  "conditions": {
+    "ref_name": {
+      "include": ["~ALL"],
+      "exclude": ["~DEFAULT_BRANCH"]
+    }
+  },
+  "rules": [
+    {
+      "type": "branch_name_pattern",
+      "parameters": {
+        "name": "type/kebab-slug",
+        "operator": "regex",
+        "pattern": "^(build|chore|ci|docs|feat|fix|perf|refactor|test)/[a-z0-9]+(-[a-z0-9]+)*$",
+        "negate": false
+      }
+    }
+  ],
+  "bypass_actors": []
+}

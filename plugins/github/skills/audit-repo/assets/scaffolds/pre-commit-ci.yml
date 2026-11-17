@@ -1,0 +1,65 @@
+# The workflow the audit-repo skill scaffolds beside its pre-commit
+# baseline, copied to .github/workflows/pre-commit.yml: it runs the repo's
+# hooks on the server, for every push to the default branch and every pull
+# request. The hooks gate only a clone where `pre-commit install` ran, so
+# without this a clone lacking them, an outside pull request or a commit
+# made in GitHub's web editor skips them all.
+#
+# identity-guard and lint-briefs run locally only. Each reads a file outside
+# the repo, the user's identity-guard.sh hook or the triage-inbox skill's
+# handoff-status.py, and skips with exit 0 where it is absent, as it is on a
+# runner; a non-verbose hook's line then reads Passed, hiding its skip line,
+# so a green run says nothing about either.
+#
+# gitleaks runs as its own step, not as the hook: the hook scans the index
+# (`gitleaks git --pre-commit --staged`), which is empty in CI, so under
+# `run --all-files` it passes having scanned nothing. The step scans every
+# commit instead, so the checkout takes the full history (fetch-depth 0).
+# The binary is the release the baseline's hook pins, v8.30.1, checked
+# against the SHA-256 its release's checksums file lists (read 2026-11-03).
+# Raise both together.
+#
+# A `language: system` hook runs a tool the runner must have: install each
+# in a step before the last, shfmt by `sudo apt-get update -q && sudo
+# apt-get install -y -q shfmt`, or the hook fails. The image is pinned,
+# since ubuntu-latest is moving to 26.04 (2026-10-19 to 2026-11-19,
+# actions/runner-images#14748) and with it every system tool's version;
+# so is pre-commit, which pipx would otherwise fetch anew on every run, at
+# 4.7.0, PyPI's latest on 2026-11-03. Every `uses:` is pinned to a full
+# commit SHA, its tag kept as a comment. Reproduced green, with an shfmt
+# step this template leaves out and pre-commit unpinned, so 4.7.0, on a
+# pull request and on the push to main in a personal repo, 2026-11-02.
+name: pre-commit
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  pre-commit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      GITLEAKS_VERSION: 8.30.1
+      GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Scan every commit for secrets (gitleaks)
+        run: |
+          tarball="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          curl -sSfL -o "$RUNNER_TEMP/$tarball" \
+              "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/$tarball"
+          printf '%s  %s\n' "$GITLEAKS_SHA256" "$RUNNER_TEMP/$tarball" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/$tarball" -C "$RUNNER_TEMP" gitleaks
+          "$RUNNER_TEMP/gitleaks" git --redact --no-banner .
+      - name: Run every other hook on every file
+        env:
+          SKIP: gitleaks
+        run: pipx run --spec 'pre-commit==4.7.0' pre-commit run --all-files --show-diff-on-failure
