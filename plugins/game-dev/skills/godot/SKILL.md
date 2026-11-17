@@ -38,8 +38,7 @@ where no page covers it.
 the engine or GodotSteam from source; 3D, physics, animation, audio,
 input, UI themes and shaders; export to anything but Windows; test
 frameworks; GDScript's naming, code order and typing style beyond the
-typing setting in § 3, which a `coding-gdscript.md` rule covers where
-one is installed, and Godot's own style guide where none is.
+typing setting in § 3, which follow Godot's own GDScript style guide.
 
 Detail lives in `references/`: `scene-format.md` (the `.tscn` and
 `.tres` grammar, section by section, with examples from the docs) and
