@@ -1,0 +1,7 @@
+{
+  "name": "bicep-lsp",
+  "description": "Bicep language server for Claude Code: diagnostics and linter findings after an edit, and symbol lookup in .bicep files. Needs bicep-ls (the Azure.Bicep.LangServer dotnet tool) on PATH.",
+  "author": {
+    "name": "wardawgmalvicious"
+  }
+}
