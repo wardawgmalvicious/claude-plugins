@@ -6,8 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A Claude Code plugin marketplace, `.claude-plugin/marketplace.json`,
 named `wardawgmalvicious`, so each plugin installs as
-`<plugin>@wardawgmalvicious`. Plugins go under `plugins/<name>/`; none
-are published yet.
+`<plugin>@wardawgmalvicious`. Plugins go under `plugins/<name>/`, one
+per audience, each listed in `README.md`'s table.
 
 **The plugins are exported here from a private source repository**, and
 each export overwrites what it ships. Never write a plugin's content
@@ -29,8 +29,8 @@ pre-commit run --all-files
 ```
 
 - **Never pass `--strict` to `validate`**: it fails every warning,
-  among them the one for a plugin with no `version`. Today the root
-  passes with one warning, `Marketplace has no plugins defined`.
+  among them the one for a plugin with no `version`, which the root
+  reports once per plugin.
 - On the root, `validate` reads only `marketplace.json`, hence the loop.
   CI's loop runs under `shopt -s nullglob`, so with no `plugins/` it
   runs zero times instead of once on the literal pattern.
