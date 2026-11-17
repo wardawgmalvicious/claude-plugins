@@ -1,0 +1,7 @@
+{
+  "name": "admin",
+  "description": "For a claude.ai organization's Owners: writes and audits the Organization instructions block that loads in every member's conversations.",
+  "author": {
+    "name": "wardawgmalvicious"
+  }
+}

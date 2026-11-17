@@ -1,0 +1,7 @@
+{
+  "name": "bash-lsp",
+  "description": "Bash language server for Claude Code: shellcheck diagnostics after an edit and symbol lookup in .sh files. Needs bash-language-server and shellcheck on PATH.",
+  "author": {
+    "name": "wardawgmalvicious"
+  }
+}

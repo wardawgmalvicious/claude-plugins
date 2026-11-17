@@ -1,0 +1,93 @@
+# MS Learn link bundle — Fabric gotchas & troubleshooting
+
+Curated set of Microsoft Learn pages that back the cross-cutting error/gotcha index in [gotchas.md](gotchas.md). Organized by error class, each entry pairs the gotcha with the canonical Microsoft documentation that explains the underlying constraint and (where relevant) the fix.
+
+The 3 highest-leverage entry points (Warehouse troubleshooting, T-SQL surface area limitations, transactions / write-write conflicts) are also linked in [gotchas.md](gotchas.md)'s `## Reference` section for in-context use; this file holds the comprehensive set.
+
+**Use pattern:** when you hit a specific gotcha listed in the [gotchas.md](gotchas.md) table, jump directly to the matching link below for the deep dive.
+
+## Authentication and authorization (401 / 403 / 404)
+
+- [Microsoft Entra authentication for Fabric SQL](https://learn.microsoft.com/fabric/data-warehouse/entra-id-authentication) — confirms SQL auth is unsupported; explains the Entra-only model. Companion to the 401 token-audience gotcha.
+- [Workspace roles in Fabric](https://learn.microsoft.com/fabric/fundamentals/roles-workspaces) — Admin / Member / Contributor / Viewer responsibility matrix. Background for the 403-on-Power-BI-API-as-Viewer gotcha.
+- [Item-level permissions (Read / ReadData / ReadAll / Share / Write)](https://learn.microsoft.com/fabric/security/permission-model) — the layer underneath workspace roles; relevant when 404 EntityNotFound is actually a permission issue.
+- See [auth.md](auth.md) for the full token audience table and `az login` flow variants.
+
+## Runtime ID vs `.platform` `logicalId` (`PowerBIEntityNotFound`)
+
+- [Fabric Items REST API: list / get](https://learn.microsoft.com/rest/api/fabric/core/items) — endpoint that returns the **runtime** item ID needed by pipeline / Variable Library / `getDefinition` / `updateDefinition` calls.
+- [Item definition overview](https://learn.microsoft.com/rest/api/fabric/articles/item-management/definitions/item-definition-overview) — which definition APIs accept or return the platform file (`updateMetadata=true` for Update). It does not name `logicalId`.
+- [Git integration source code format](https://learn.microsoft.com/fabric/cicd/git-integration/source-code-format) — explains the `.platform` file and its `logicalId` field, which is *separate* from the runtime ID.
+- **They are separate strings but not independent values.** For an item **created in the portal**, `logicalId` is the runtime item ID with its 16 bytes reversed — so the runtime ID can be derived offline from a committed `.platform`, with no API call. Measured 2026-09-03 against `GET /v1/workspaces/{ws}/items` across 19 workspaces: 21 of 21 resolvable reversals hit a real item with the same `displayName` and `type`; none hit a different item; no raw `logicalId` was itself an item ID.
+- **Not for git-first items.** An item authored as files and synced *into* a workspace carries a fresh client-side v4 that encodes nothing. Origin is what separates the two forms (76 of 76, no cross-cases) — an item whose oldest commit is a portal sync (`Committing N items from workspace …`) reverses; one first added by a human commit does not.
+- Deriving is safe; **substituting is still the bug this row exists for.** Fabric does not fall back from one to the other at runtime.
+- See [the skill's body](../SKILL.md) for the canonical rules and the snippet.
+
+## TDS connection (Warehouse / SQL endpoint / SQL Database)
+
+- [Connect to Fabric SQL endpoint or warehouse with SQL Server Management Studio](https://learn.microsoft.com/fabric/data-warehouse/connectivity) — connection-string fields, `Initial Catalog = <item display name>` (NOT FQDN), `Encrypt=Yes`, port 1433. An existing warehouse ID also connects to that warehouse; with no `InitialCatalog` the connection lands in `master` (change warehouse with `USE`).
+- [Connectivity in Fabric Data Warehouse — networking and firewall](https://learn.microsoft.com/fabric/data-warehouse/connectivity) — allow the Power BI and SQL service tags (the FQDN alone is not enough), and **treat the traffic as MSSQL/TDS, not HTTPS, on port 1433** in a protocol-aware firewall such as Azure Firewall application rules, or the connection can fail with the port open. FQDN-based filtering works through Azure Firewall's SQL FQDN rules. The page lists no outbound hostnames (checked 2026-10-31).
+- See [auth.md](auth.md) for the TDS connection essentials table (MARS unsupported, etc.).
+
+## Snapshot conflicts (24556 / 24706) and transactions
+
+- [Transactions in Fabric Data Warehouse](https://learn.microsoft.com/fabric/data-warehouse/transactions) — full description of write-write conflicts, snapshot isolation enforcement (any explicit `SET TRANSACTION ISOLATION LEVEL` is silently ignored), table-level locking, the "first to commit wins" rule, MERGE-still-conflicts caveat.
+- [Troubleshoot the Warehouse — write-write or update conflicts](https://learn.microsoft.com/fabric/data-warehouse/troubleshoot-fabric-data-warehouse) — the canonical 24556 / 24706 reference + what to collect before contacting support (workspace ID, statement ID, distributed request ID).
+- [Retry pattern (Azure Architecture Center)](https://learn.microsoft.com/azure/architecture/patterns/retry) — exponential-backoff guidance the Fabric DW docs explicitly recommend for transient conflicts.
+
+## Warehouse T-SQL surface limitations (`nvarchar` / `datetime` / `MERGE` / `ALTER COLUMN` / etc.)
+
+- [T-SQL surface area in Fabric Data Warehouse](https://learn.microsoft.com/fabric/data-warehouse/tsql-surface-area) — authoritative list of unsupported commands (CREATE USER, FOR XML, SET ROWCOUNT, materialized views, triggers, recursive queries, etc.). The supported-`ALTER TABLE` subset is explicit (ADD nullable column / DROP COLUMN / NOT ENFORCED constraints; `ALTER COLUMN` is in preview — nothing else); the supported variants can run inside `BEGIN TRAN ... COMMIT` (April 2026 GA, see `data-items`' `references/warehouse/warehouse.md`, its Transactions section). `COPY INTO` `FILE_TYPE` accepts `PARQUET` / `CSV` / `JSONL` (JSONL added April 2026).
+- [Data types in Fabric Data Warehouse](https://learn.microsoft.com/fabric/data-warehouse/data-types) — the unsupported-types table with alternatives: `nvarchar` → `varchar` (UTF-8 collation), `datetime`/`smalldatetime` → `datetime2`, `money` → `decimal`, `image` → `varbinary`, `xml` → no equivalent, `json` → `varchar`, `geography`/`geometry` → varchar/varbinary with WKT/WKB, `vector` → no equivalent (consider the AI functions, preview).
+- [Tables in Fabric Data Warehouse — limitations](https://learn.microsoft.com/fabric/data-warehouse/tables) — no computed columns, indexed views, partitioned tables, sequences, sparse columns, synonyms, triggers, unique indexes, UDTs, external tables; 1024-column limit; >750k objects disable metadata caching.
+- [Fabric Migration Assistant for Data Warehouse](https://learn.microsoft.com/fabric/data-warehouse/migration-assistant) — workaround table (SQL auth → Entra, column-level encryption → DDM, identity columns differ). Unsupported with no workaround listed: external tables, multi-statement TVFs.
+- [Troubleshoot Git integration for warehouse development](https://learn.microsoft.com/fabric/data-warehouse/troubleshoot-git-integration) — every DacFx build-time failure, with before/after SQL. These pass `sqlcmd` and fail only on commit / update / branch-out, which is why they read as a broken sync rather than a T-SQL error.
+- [Deploy a warehouse using pipelines](https://learn.microsoft.com/fabric/data-warehouse/deploy-pipelines) — the fixed deployment settings behind the `DataLoss` block and the success-with-skipped-drop rows above.
+- See `data-items`' `references/sql-database/sql-database.md` for which restrictions DON'T apply when the engine is Fabric SQL Database.
+
+## COPY INTO authentication
+
+- [Ingest data into your Warehouse using the COPY statement](https://learn.microsoft.com/fabric/data-warehouse/ingest-data-copy) — auth options (Storage Blob Data Reader on ADLS, SAS in CREDENTIAL, Storage account key) and common error patterns.
+
+## TMDL validation (tabs vs spaces, `///` comments)
+
+- [TMDL overview](https://learn.microsoft.com/analysis-services/tmdl/tmdl-overview) — language reference; tabs-only indentation, `///` for descriptions, `//` not supported.
+- See `pbi-items` skill's `references/tmdl/tmdl.md` for authoring rules and the common-mistake table.
+
+## REST update-definition pitfalls (parts deletion, jobType)
+
+- [Update item definition (Fabric REST)](https://learn.microsoft.com/rest/api/fabric/core/items/update-item-definition) — confirms the API REPLACES the entire definition; omitting parts deletes them. The `?updateMetadata=true` flag for `.platform` updates. The request body also takes an optional `options` object, whose property names are valid options for the item type (each type's own Update-Definition page lists them).
+- [Run on demand item job (Fabric REST)](https://learn.microsoft.com/rest/api/fabric/core/job-scheduler/run-on-demand-item-job) — required `jobType` values: `RunNotebook`, `Pipeline`, `SparkJob`, `Refresh`, `TableMaintenance`. `DefaultJob` is *not* a valid value despite appearing in some examples.
+- See [the skill's body](../SKILL.md) for the LRO polling pattern.
+
+## sqlcmd version / ODBC / connectivity
+
+- [Download and install sqlcmd](https://learn.microsoft.com/sql/tools/sqlcmd/sqlcmd-download-install) — the modern cross-platform `sqlcmd` (`winget install sqlcmd`); the legacy ODBC version (`/opt/mssql-tools/`) is incompatible with Fabric's TDS endpoint configuration.
+- [MSSQL extension for Visual Studio Code](https://learn.microsoft.com/sql/tools/visual-studio-code-extensions/mssql/mssql-extension-visual-studio-code) — Entra-aware client.
+
+## Lakehouse SQL endpoint slowness (small files)
+
+- [Delta Lake table optimization and V-Order](https://learn.microsoft.com/fabric/data-engineering/delta-optimization-and-v-order) — OPTIMIZE + V-Order; the canonical fix for the small-file problem the gotcha calls out.
+- [Run Delta table maintenance in Lakehouse](https://learn.microsoft.com/fabric/data-engineering/lakehouse-table-maintenance) — UI walkthrough for OPTIMIZE / VACUUM / Z-ORDER.
+
+## Notebook upload `400 exceptionCulprit:1` (cell `source` shape)
+
+- [Notebook item definition](https://learn.microsoft.com/rest/api/fabric/articles/item-management/definitions/notebook-definition) — the cell-source must be array-of-strings for both code and markdown cells; bare-string source is rejected.
+- See `data-items`' `references/spark/references/notebook-api.md`, § Cells for the REST definition APIs, for the canonical .ipynb-shape rules.
+
+## Cross-database query restrictions
+
+- [Tutorial: Cross-warehouse query in Fabric](https://learn.microsoft.com/fabric/data-warehouse/tutorial-sql-cross-warehouse-query-editor) — three-part naming, same-workspace and same-region requirement.
+
+## Notebook collaboration / Spark errors
+
+- [Fabric notebooks troubleshooting guide](https://learn.microsoft.com/fabric/data-science/fabric-notebooks-troubleshooting-guide) — collaboration conflicts, "Excessive query complexity" (Catalyst plan size), session timeout / connectivity errors. Includes the Fix-with-Copilot flow.
+
+## Capacity throttling errors (`CapacityLimitExceeded`)
+
+- [Smoothing and throttling in Fabric Data Warehouse](https://learn.microsoft.com/fabric/data-warehouse/compute-capacity-smoothing-throttling) — SQL error code `24801` from SSMS / mssql VS Code when capacity rejects.
+- [The Fabric throttling policy](https://learn.microsoft.com/fabric/enterprise/throttling) — full overage / carryforward / burndown model. See `data-items`' `references/warehouse/references/monitoring-links.md` for the Capacity Metrics App reference.
+
+## OneLake auth
+
+- [OneLake security overview](https://learn.microsoft.com/fabric/onelake/security/get-started-security) — ABFS access, `Storage Blob Data Reader/Contributor` requirement, the `https://storage.azure.com/.default` audience requirement (NOT `datalake.azure.net`).

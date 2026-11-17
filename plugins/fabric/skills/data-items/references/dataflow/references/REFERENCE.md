@@ -1,0 +1,314 @@
+# Fabric Dataflow Gen2 — reference
+
+Detail split out of `dataflow.md`. Everything here is from Microsoft Learn,
+read 2026-09-12. Where a claim is not on a Learn page it says so.
+
+## 1. Definition part schemas
+
+The `queryMetadata.json` field tables, the `queriesMetadata` entries and
+the `.mdf` shape are in [dataflow-api.md](dataflow-api.md) § Definition.
+
+## 2. Public parameter types
+
+The type table, the run-time override and the required-parameter rule are
+in [dataflow-api.md](dataflow-api.md) § Public parameter types.
+
+## 3. Data destinations
+
+Supported destinations: Azure SQL databases, Azure Data Explorer
+(Kusto), Azure Data Lake Gen2, Fabric Lakehouse tables, Fabric Lakehouse
+files, Fabric Warehouse, Fabric KQL database, Fabric SQL database,
+SharePoint files, Snowflake, PostgreSQL.
+
+- **Only tabular queries** can take a destination — functions and lists
+  cannot.
+- **Lakehouse alone supports both files and tables.**
+- **Excel is a file format, not a destination.** A file-based
+  destination, such as SharePoint, writes delimited text or Excel: one
+  sheet as a table or a chart, one sheet per value of a partition
+  column, or an Advanced workbook built from navigation tables (Learn,
+  2026-10-06).
+- **KQL and Azure Data Explorer do not support `replace`** as an update
+  method; most others support append and replace.
+- **Warehouse requires fixed schema.** Snowflake does not: under Replace,
+  a new Snowflake table takes dynamic or fixed schema (Learn, 2026-10-06).
+  What's New lists "Dataflow dynamic warehouse schema" as a preview that
+  evolves destination tables when query output changes, but the
+  destinations page it links still says only fixed schema is supported
+  for Warehouse, so how the preview behaves is undocumented (2026-10-07).
+- **Warehouse writes require staging** and only into the same workspace
+  as the dataflow.
+- **A new table that you later delete is recreated** on the next
+  refresh. An *existing* table is never recreated — delete it and the
+  dataflow stops writing.
+- **Automatic settings** mean replace + managed mapping + drop-and-
+  recreate on every refresh, which removes relationships or measures
+  added to the table. Available for Lakehouse, Azure SQL Database and
+  Snowflake (Learn, 2026-10-06).
+- **Schema options apply only to `replace`.** With dynamic schema a
+  mismatch drops and recreates the table; with fixed schema a mismatched
+  query fails the publish.
+- **Destination queries are named** `<query>_DataDestination`.
+- **V-Order** has two separate controls — one on the destination, one on
+  the staging Lakehouse under the Scale tab. Preview, default true,
+  roughly 10% read improvement, recommended for Direct Lake.
+- **Optimized copy to Lakehouse** sits beside the staging V-Order
+  control (Options → Scale → Staged Data), GA since September 2026 and
+  **off by default**. It takes a faster write path for staged queries
+  that land in a Lakehouse destination, does nothing for any other
+  destination, and covers every qualifying query, with no per-query
+  override (Learn, 2026-10-06).
+- **Vacuum conflicts with incremental refresh** — turn vacuuming off
+  when incremental refresh is in use. Default retention is seven days
+  and going below that risks time-travel breakage.
+- **SQL analytics endpoint metadata sync** defaults true; disable it
+  when a large delta-log backlog is inflating refresh times.
+
+### Snowflake destination
+
+GA. Update methods are Replace and Append; with Replace, a new table
+takes dynamic or fixed schema, while fixed schema or Append allows no
+automatic schema change. Managed (automatic) settings cover new tables,
+a Snowflake default destination included: add, rename or remove a
+column, republish, and the next refresh updates the destination schema
+with no remapping. Under manual dynamic schema, update the column
+mapping yourself before republishing. Through an on-premises data
+gateway, install the latest gateway version; older ones lack the
+connector changes Snowflake destinations need (Learn, 2026-10-06).
+
+### Type support
+
+Not every type survives every destination. Fabric Warehouse rejects
+`Currency`; `DateTimeZone` is unsupported on Lakehouse, Warehouse and
+Snowflake; `Time` is unsupported on ADX, Lakehouse and Warehouse.
+`Action`, `Any`, `Binary`, `Function`, `None`, `Null`, `Type` and
+`Structured` are unsupported everywhere. Remap currency and percentage
+to decimal when mapping to an existing column.
+
+Column nullability defaults to allowing nulls in all destination
+columns. A non-nullable collision surfaces as `E104100 … We can't insert
+null data into a non-nullable column`.
+
+## 4. Incremental refresh
+
+**Supported destinations**: Fabric Lakehouse, Fabric Warehouse, Azure SQL
+Database. Others need a second query reading the staged data.
+
+### Hard requirements
+
+- The query must **fully fold**. A green folding indicator at authoring
+  time can still fail validation later — `Table.SelectRows` is the named
+  example.
+- **Default destination configuration is not supported**; define the
+  destination explicitly in query settings.
+- The destination must use a **fixed schema**.
+- The only supported update method is **`replace`**.
+- Set the destination **before** the first incremental run, or it holds
+  only the changed data.
+
+**Mechanics.** Data is bucketed by a DateTime, Date or DateTimeZone
+column. Each bucket is deleted then reinserted; data outside the bucket
+range is untouched, including history older than the first bucket.
+"Extract data from the past" takes days, weeks, months, quarters or
+years. Filters and parameters are added automatically as the last query
+step — unlike Gen1, where you supplied them.
+
+**Caps**: 50 buckets per query, 150 per dataflow, and at most 10
+concurrent bucket evaluations against a Lakehouse.
+
+**Lakehouse caveats**: other writers such as Spark can interfere;
+`OPTIMIZE` and `REORG TABLE` are unsupported on tables using incremental
+refresh; a gateway needs at least the May 2025 release (3000.270);
+switching a table with overlapping existing data from non-incremental to
+incremental is unsupported, because the whole Delta table would have to
+be rewritten.
+
+Staged data outside the bucket range is not guaranteed to remain
+available. A query with incremental refresh enabled shows a blue triangle
+on its icon.
+
+## 5. Fast copy
+
+**Thresholds** — CSV or Parquet of at least **100 MB** in ADLS Gen2 or
+Blob storage; **5 million rows or more** for databases. *Require fast
+copy* bypasses the threshold and fails fast instead of waiting for a
+timeout.
+
+**Connectors**: ADLS Gen2, Blob storage, Azure SQL DB, Lakehouse,
+PostgreSQL, on-premises SQL Server, Warehouse, Oracle, Snowflake, SQL
+database in Fabric.
+
+**Transformations on file sources** are limited to combine files, select
+columns, change type, rename and remove column. For SQL sources anything
+inside the native query is fine.
+
+**Output**: Lakehouse only, directly. For anything else, stage the query
+and reference it from a later query.
+
+**Other limits**: fixed schema unsupported, schema-based destination
+unsupported, on-premises gateway 3000.214.2 or newer. Enabling *Navigate
+using full hierarchy* may stop fast copy working, and needs gateway
+3000.310 with a gateway.
+
+Check whether it was used via the **Engine** column in refresh history.
+Step diagnostics colour steps: yellow potentially supported, red not
+supported.
+
+## 6. Monitoring
+
+### Refresh history
+
+Shows up to **50 refreshes or six months**, whichever comes first;
+OneLake retains **250 refreshes or six months**. Detailed logs come from
+the Power Query mashup engine, appear minutes after a refresh and last
+**28 days**. Downloading them needs at least the **Viewer** role;
+gateway-refreshed dataflows additionally need *Admin consent for gateway
+diagnostics* enabled on the gateway.
+
+Per-refresh fields include status, type, start and end, duration,
+Request ID, Session ID and Dataflow ID. The **Tables** section lists
+entities being loaded into staging. Activity statistics report endpoints
+contacted, bytes and rows read and written — some connectors report rows
+and some bytes.
+
+### Workspace monitoring
+
+Covers **CI/CD dataflows only**. Setup, access and retention are
+`rti-items`' `references/eventhouse/references/workspace-monitoring.md`.
+Records land
+in `ItemJobEventLogs` with `ItemKind == "DataFlow"`. A monitoring database
+also holds a `DataflowGen2Logs` table that Learn's supported-telemetry
+list omits; it was empty when seen and is unread (2026-10-24).
+
+Two job types: `Refresh` and `Publish`. **Each operation writes an
+`InProgress` record and a terminal `Completed` or `Failed` record sharing
+one `JobInstanceId`** — filter on the terminal status or deduplicate, or
+counts double.
+
+```kql
+ItemJobEventLogs
+| where ItemKind == "DataFlow" and JobType == "Refresh" and JobStatus == "Failed"
+| order by Timestamp desc
+| project Timestamp, ItemName, WorkspaceName, JobStartTime, JobEndTime, JobStatus
+```
+
+Useful columns: `JobInvokeType` (`Manual` or `Scheduled`), `JobStatus`,
+`DurationMs`, `ExecutingPrincipalId` / `Type`, `JobDefinitionObjectId`
+(the scheduler that fired it), `JobScheduleTime`, `JobStartTime`,
+`JobEndTime`.
+
+## 7. Upgrade Wizard — Needs Attention reasons
+
+Statuses are *Ready to migrate*, *Needs Attention* and *Upgrade
+unavailable*. The assessment checks the dataflow itself, not its
+consumers, and does not detect every limitation.
+
+*Upgrade unavailable* has two blocking reasons:
+
+| Reason | What to do |
+| --- | --- |
+| Not the owner | Ask the owner to upgrade, or **Take over**, then refresh the Gen1 and confirm it succeeds |
+| Unresolved data source connections | Recreate or rebind the connections before upgrading |
+
+*Needs Attention* reasons, below, let the upgrade proceed; only the
+50-query one needs action first.
+
+| Reason | What to do |
+| --- | --- |
+| DirectQuery consumers | Move downstream models to Import or Direct Lake |
+| Bring Your Own Lake (ADLS Gen2) | Configure an ADLS Gen2 destination on the upgraded item |
+| Incremental refresh | Settings are not carried over; configure a supporting destination, then reconfigure |
+| Linked entities | Cascading refresh is unsupported; trigger downstream refreshes with a pipeline or schedule |
+| Referenced by linked entities | Open and save the referencing dataflows; move them off the legacy connector |
+| Unsupported characters in the name | Wizard strips them; rename first to control the result. Only letters, numbers, whitespace and `( ) [ ] { } + - = _ #` are allowed |
+| Name already in use | Wizard prefixes *Migrated* |
+| **More than 50 enabled queries** | **Must be reduced before upgrading** |
+
+DirectQuery and linked-entity reasons are detection signals rather than
+proof — confirm real consumers via lineage first. A dataflow can sit on
+both sides of a linked-entity relationship.
+
+Other documented limits: historic data is not carried over; refresh is
+blocked during the upgrade; a failed upgrade cannot be retried for 24
+hours; outbound access protection cannot be enabled on the workspace for
+30 days; and workspace Viewers cannot consume tables from an upgraded
+dataflow.
+
+### `saveAsNativeArtifact` (preview, Power BI REST)
+
+```text
+POST https://api.powerbi.com/v1.0/myorg/groups/{groupId}/dataflows/{gen1DataflowId}/saveAsNativeArtifact
+```
+
+Body: `displayName` (≤200), `description` (≤4000), `includeSchedule`,
+`targetWorkspaceId`. Omitting `displayName` generates one with a
+`_copy1` style suffix; omitting `targetWorkspaceId` uses the source
+workspace. A copied schedule arrives **disabled**.
+
+Returns `200` with `artifactMetadata` **even when parts failed** —
+inspect `errors` for `FailedToCopySchedule`, `SetDataflowOriginFailed`
+or `ConnectionsUpdateFailed`.
+
+### Save As known limitations
+
+Scheduled refresh settings are not copied by Gen2 Save As; incremental
+refresh settings are not copied by Gen1 Save As. CDM folders, BYOL,
+Compute Engine, DirectQuery, AI Insights and endorsements have no Gen2
+equivalent and are not copied.
+
+## 8. Cost formulas
+
+```text
+# CI/CD standard compute, per query
+StandardComputeCapacityConsumptionInCUSeconds =
+    if(QueryDurationInSeconds < 600,
+       QueryDurationInSeconds * 12,
+       (QueryDurationInSeconds - 600) * 1.5 + 600 * 12)
+
+# non-CI/CD standard compute
+StandardComputeCapacityConsumptionInCUSeconds = QueryDurationInSeconds * 16
+
+# high scale (staging enabled)
+HighScaleComputeCapacityConsumptionInCUSeconds = QueryDurationInSeconds * 6
+
+# fast copy — duration is aggregate core time, not wall clock
+FastCopyComputeCapacityConsumptionInCUSeconds = QueryDurationInSeconds * 1.5
+```
+
+Pricing applies to F2 and above, not to trial capacities. The VNET data
+gateway is a separate additive meter at **4 CU**, billed on uptime, so
+the total is the dataflow charge plus the gateway charge.
+
+**Partitioned compute changes the arithmetic**: each partition is its own
+unit of work and charges are the sum over every partition, so parallelism
+shortens wall clock without reducing CU. That page was not drilled — read
+it before advising on partitioned workloads.
+
+## 9. Git integration and deployment pipelines
+
+Dataflow Gen2 appears in the supported-item lists for **both** Git
+integration and deployment pipelines, under Data Factory, with no
+preview marker. The Power BI **Dataflow** (Gen1) item is listed
+separately and is marked preview in the deployment-pipelines list.
+
+Unsupported items in a connected workspace are ignored rather than
+deleted — visible in the source-control panel but not committable.
+
+## 10. Not drilled
+
+Nothing in this skill describes these, and the omissions are deliberate:
+
+- `executeQuery`'s behaviour: its Learn page exists, in the *Query
+  Execution* group (read 2026-10-20), and [dataflow-api.md](dataflow-api.md)
+  lists it, but no call was ever run.
+- `gatewayClusterDatasources`, the internal Power BI v2.0 endpoint that
+  resolves `ClusterId`. Undocumented by its own description.
+- Connection and gateway CRUD (`/v1/connections*`, `/v1/gateways`).
+- The Power BI Gen1 read surface used for bulk migration assessment —
+  `upstreamDataflows`, `transactions`, `datasources`, admin listings.
+- `dataflow-gen2-partitioned-compute` and
+  `dataflow-gen2-cost-performance-benchmarks`.
+- MDF transform authoring, the connector catalogue, Copilot, and the
+  Power Query editor click-path.
+- **No live tenant was used.** Every claim here is documentation rather
+  than observation.

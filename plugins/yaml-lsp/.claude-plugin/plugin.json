@@ -1,0 +1,7 @@
+{
+  "name": "yaml-lsp",
+  "description": "YAML language server for Claude Code: syntax and schema diagnostics after an edit, such as GitHub Workflow schema errors, and symbol lookup in .yml and .yaml files. Needs yaml-language-server (the npm package) on PATH.",
+  "author": {
+    "name": "wardawgmalvicious"
+  }
+}

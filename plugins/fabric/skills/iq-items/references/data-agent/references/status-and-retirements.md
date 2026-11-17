@@ -1,0 +1,16 @@
+# Fabric Data Agent: GA status, preview surface, retirements
+
+Split out of [data-agent.md](../data-agent.md). Read when you need to
+know whether a specific capability is production-ready, or when an older
+integration has stopped working.
+
+**Status — Generally Available as of March 2026.** The core agent (create / configure / publish / share) and built-in diagnostics are GA. Treat as a production surface. Lifecycle management via Git integration and deployment pipelines is **preview**: "Source control for Fabric data agents is currently in preview," though Git's supported-items list gives Data Agents no label (Learn, 2026-10-06). The following companion features are still in **preview** at GA and should be gated accordingly: the **Creator Agent** ("Build agent with AI") for AI-assisted authoring of the four configuration layers, the **Fabric Data Agent Python SDK** (including programmatic `evaluate_few_shots` and ground-truth evaluation), **Microsoft Copilot Studio's connected-agent integration**, and **Azure AI Foundry / Azure AI Agent Service integration**. Two consumption surfaces have since gone GA (checked 2026-10-06): the **MCP server endpoint**, the programmatic query surface, and Copilot Studio's **tool** path, *Fabric IQ Data MCP* — see [consumption-surfaces.md](consumption-surfaces.md). Consumption from **Microsoft Copilot** (Agent Store, formerly titled Microsoft 365 Copilot) has dropped its preview label without stating a status, and the **external Python client SDK**'s page now redirects to the MCP server page, whose *Connect from Python* is the external route (both read 2026-11-09).
+
+**Retired 2026-08-26** — two integration paths no longer exist. Do not build against either:
+
+- **Azure OpenAI Assistants API.** Data agents were historically described as "built on Azure OpenAI Assistant APIs", and the Python SDK queried them through the OpenAI Assistants API. Direct Assistants API integrations had to migrate to the **data agent MCP endpoint** before 2026-08-26. Within the SDK, the equivalent move is from the Fabric OpenAI client to the Fabric OpenAI **Responses** client (migration path opened 2026-08-11). Only *querying* code was affected — create / configure / publish are unchanged.
+- **Copilot in Power BI.** The Fabric data agent integration in Copilot in Power BI retired on the same date; move those workflows to a supported surface (in-product chat, M365 Copilot, Copilot Studio, Foundry, or the MCP endpoint).
+
+## Learn pages
+
+- [Fabric data agent Python SDK (preview)](https://learn.microsoft.com/fabric/data-science/fabric-data-agent-sdk) — management plane, and Learn sends querying to the MCP endpoint, yet its Responses client still queries and is the one scripted route to an answer's DAX ([consumption-surfaces.md](consumption-surfaces.md))

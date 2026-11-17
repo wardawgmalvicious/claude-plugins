@@ -1,0 +1,6 @@
+{
+  "bicep": {
+    "command": "bicep-ls",
+    "extensionToLanguage": { ".bicep": "bicep" }
+  }
+}

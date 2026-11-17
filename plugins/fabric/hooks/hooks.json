@@ -1,0 +1,18 @@
+{
+  "description": "Refuses the first edit to a Fabric item folder until the skill that owns the item has been invoked; see hooks/fabric-edit-gate.sh's header.",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/fabric-edit-gate.sh\"",
+            "timeout": 15,
+            "onFailure": "continue"
+          }
+        ]
+      }
+    ]
+  }
+}

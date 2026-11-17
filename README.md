@@ -27,11 +27,20 @@ fetches the latest.
 
 ## Plugins
 
-No plugins are published yet.
-
 | Plugin | What it covers | Platforms | Install |
 | --- | --- | --- | --- |
-| *none yet* | | | |
+| `fabric` | Microsoft Fabric and Power BI items, the REST API and `fab` CLI, deployment, security and governance; an agent and a hook load an item's skill before it is edited | Claude Code | `/plugin install fabric@wardawgmalvicious` |
+| `git` | Logical commits, code review, landing a branch through a pull request, pruning branches | Claude Code | `/plugin install git@wardawgmalvicious` |
+| `github` | Auditing a repo's settings and community files, a Projects board for issues, recreating a repo after a pushed leak | Claude Code | `/plugin install github@wardawgmalvicious` |
+| `meta` | Claude Code itself: agent setup audits, finding past sessions, user-scope `CLAUDE.md`, session cost, instruction placement, shipping plugins | Claude Code | `/plugin install meta@wardawgmalvicious` |
+| `essentials` | Your claude.ai Instructions for Claude block and a Project's instructions | claude.ai chat, Cowork, Claude Code | `/plugin install essentials@wardawgmalvicious` |
+| `admin` | A claude.ai organization's Organization instructions, for its Owners | claude.ai chat, Cowork, Claude Code | `/plugin install admin@wardawgmalvicious` |
+| `bash-lsp` | Bash language server for `.sh` files; [install the server first](plugins/bash-lsp/README.md) | Claude Code | `/plugin install bash-lsp@wardawgmalvicious` |
+| `yaml-lsp` | YAML language server for `.yml` and `.yaml` files; [install the server first](plugins/yaml-lsp/README.md) | Claude Code | `/plugin install yaml-lsp@wardawgmalvicious` |
+| `bicep-lsp` | Bicep language server for `.bicep` files; [install the server first](plugins/bicep-lsp/README.md) | Claude Code | `/plugin install bicep-lsp@wardawgmalvicious` |
+
+**The language-server plugins ship no server**: each starts a binary
+from your `PATH`, which its README names.
 
 ## Other agents: the `skills` CLI
 

@@ -1,0 +1,121 @@
+---
+name: security
+description: "Use for the Fabric security/permission model. Covers the layers (workspace roles Admin/Member/Contributor/Viewer, item-level Read/ReadData/ReadAll, OneLake security data access roles, SQL GRANT/DENY/REVOKE), Admin/Member/Contributor bypass of RLS/CLS/DDM, least-privilege pattern (item share + SQL GRANT; a Viewer already holds ReadData), ReadData vs ReadAll distinction (SQL vs Spark/OneLake), the mode-dependent RLS/CLS enforcement across engines (OneLake security GA May 2026 enforces in Spark/Lakehouse/Direct-Lake-on-OneLake and SQL endpoints in user's-identity mode; the old Spark/OneLake bypass survives only for SQL-defined RLS and delegated-identity-mode endpoints), auto-create of users on GRANT (no CREATE USER), and the 40-warehouses-per-workspace token-size limit."
+# model: inherit  # any model: value blocks Copilot slash invocation
+# effort: medium   # unset = inherit session effort; there is no 'effort: inherit'
+disable-model-invocation: false
+---
+
+# Security model
+
+Past this file, `references/REFERENCE.md`, then Learn, by
+`microsoft-learn-mcp` (`microsoft_docs_search`, then
+`microsoft_docs_fetch`), or with no server, `curl -sL -H 'Accept: text/markdown' <page URL>` (undocumented, read 2026-11-07). A live page
+that contradicts a line here wins: say so, act on the page, and route
+the fix by `capture-learning`, bar a dated measured line that names the
+page it overrules and the call that measured it, which a page changed since
+its date sends back to re-measure. An observed claim is cited or marked
+pending a doc check, and stands, marked observed, only where no page covers
+it.
+
+## Permission Layers (broadest to finest)
+
+1. **Workspace roles**: Admin, Member, Contributor, Viewer
+2. **Item-level permissions**: Read, ReadData, ReadAll
+3. **OneLake security data access roles** (GA May 2026): lake-level RBAC — folder + row + column scopes enforced across all Fabric engines (see below)
+4. **SQL granular permissions**: GRANT/DENY/REVOKE
+
+## Key Principles
+
+- Admin/Member/Contributor roles grant full data read and bypass RLS/CLS/DDM
+- **A tenant policy can withhold two workspace settings from Admins** without removing the role (preview, Learn 2026-10-31): the *Allow workspace settings editing* policy (`WorkspaceSettingsEditing`, in a `PolicySet` item) governs who may edit customer-managed keys (`Encryption`) and outbound networking (`OutboundNetworking`); a tenant setting still wins over it, and its default effect is `Allow`. Mechanics: [Allow workspace settings editing](https://learn.microsoft.com/fabric/governance/fabric-policies-edit-workspace-settings). Auditing which policy set is active, and gating its activation, is `catalog-governance`'s (§3, *Policy sets*).
+- **A Viewer already reads every table**: the role carries `CONNECT` + ReadData on every Warehouse and SQL analytics endpoint in the workspace, so a `GRANT` adds nothing for one. For least-privilege consumer access, share the one item with no extra permissions and `GRANT` (next line), or keep Viewer and `DENY`; on an endpoint in user's-identity mode, OneLake roles decide instead. Learn's warehouse security page still says to "assign them to the Viewer role and grant read access on specific objects through T-SQL"; its workspace-roles page gives Viewer ReadData (both read 2026-10-13).
+- Sharing an item with no extra permissions → CONNECT only (can't read tables until GRANT SELECT)
+- "Read all data using SQL" (ReadData) → equivalent to `db_datareader`
+- "Read all data using Apache Spark" (ReadAll) → OneLake file access, does NOT affect SQL permissions
+- **RLS/CLS enforcement is mode-dependent** (changed by OneLake security GA, May 2026):
+  - *SQL-defined* RLS/CLS (the `CREATE SECURITY POLICY` / column-GRANT surface below) is still enforced on the SQL endpoint **only** — users with Spark/OneLake access (ReadAll) bypass it. This hole is unchanged.
+  - *OneLake-security-defined* RLS/CLS (lake-level data access roles) is enforced across **all Fabric engines** — Lakehouse, Spark notebooks, Direct Lake on OneLake, SQL analytics endpoints switched to **User's identity access mode**, Eventhouse and Graph in Fabric are all GA (Learn's engine table, read 2026-11-14; see **Engine enforcement** below). "Any security set applies to access from all engines in Fabric." SQL analytics endpoints left in **delegated-identity mode** do not honor OneLake security roles (they keep the old behavior). The mode is a one-time per-endpoint switch an Admin or Member makes under the endpoint **Security** tab, and a new SQL analytics endpoint starts in delegated-identity mode, so OneLake security reaches SQL only after that switch (Learn, 2026-10-13).
+- Users auto-created on first GRANT/DENY — `CREATE USER` is not supported
+- Limit warehouses + SQLEPs to ≤ 40 per workspace to avoid system token size limits
+
+## SQL Granular Permissions
+
+Users are auto-created on first GRANT/DENY — `CREATE USER` is not supported (and not needed).
+
+```sql
+-- Object-level
+GRANT SELECT  ON dbo.FactSales TO [analyst@contoso.com];
+DENY  SELECT  ON dbo.EmployeeSalary TO [analyst@contoso.com];
+GRANT EXECUTE ON dbo.sp_TopProducts TO [analyst@contoso.com];
+GRANT SELECT  ON SCHEMA::reporting TO [powerbi_readers@contoso.com];
+
+-- Column-level (CLS) — column list in GRANT or DENY
+GRANT SELECT ON dbo.Customers (CustomerID, CustomerName, Region) TO [viewer@contoso.com];
+DENY  SELECT ON dbo.Customers (SSN, CreditCardNumber)            TO [viewer@contoso.com];
+```
+
+## Row-Level Security (RLS)
+
+```sql
+CREATE SCHEMA rls;
+GO
+CREATE FUNCTION rls.fn_securitypredicate(@SalesRep AS varchar(60))
+RETURNS TABLE WITH SCHEMABINDING
+AS RETURN SELECT 1 AS result
+   WHERE @SalesRep = USER_NAME() OR USER_NAME() = 'manager@contoso.com';
+GO
+CREATE SECURITY POLICY dbo.SalesFilter
+ADD FILTER PREDICATE rls.fn_securitypredicate(SalesRep) ON dbo.Sales
+WITH (STATE = ON);
+```
+
+Test as the actual target user — owner-testing bypasses RLS.
+
+## Dynamic Data Masking (DDM)
+
+Warehouse, and a SQL analytics endpoint in delegated-identity mode, where masks go on existing columns with `ALTER TABLE … ALTER COLUMN … ADD MASKED WITH (FUNCTION = …)`. User's-identity mode doesn't support DDM (Learn, 2026-10-13).
+
+```sql
+CREATE TABLE dbo.Customers (
+    CustomerID int NOT NULL,
+    FullName varchar(100) MASKED WITH (FUNCTION = 'partial(1,"XXXXX",1)') NULL,
+    Email    varchar(100) MASKED WITH (FUNCTION = 'email()')              NULL,
+    Phone    varchar(20)  MASKED WITH (FUNCTION = 'default()')            NULL,
+    SSN      varchar(11)  MASKED WITH (FUNCTION = 'partial(0,"XXX-XX-",4)') NULL
+);
+
+GRANT UNMASK ON dbo.Customers TO [finance_team@contoso.com];
+```
+
+DDM is a **viewing restriction, not encryption**. Workspace Admin / Member / Contributor see unmasked data by default — DDM only protects Viewer-role users.
+
+## OneLake Security (GA May 2026)
+
+Lake-level RBAC, enforced by the engines that **Engine enforcement** below lists (the SQL analytics endpoint only in user's-identity mode), distinct from the SQL GRANT surface. Deny-by-default: a user in no data access role sees no data in the item.
+
+- **Data access roles**: each role = a permission (`Read` or `ReadWrite`) + a scope (tables/folders/schemas) + Entra members. Only GRANT-type roles exist. Tables can carry row- and/or column-level security inside a role. Created/managed by Write+Reshare users (Admin/Member) via the item's OneLake security UX.
+- **Supported items**: Lakehouse (`Read`, `ReadWrite`), Azure Databricks Mirrored Catalog (`Read`), Mirrored Databases (`Read`), Mirrored Catalogs (`Read`).
+- **`ReadWrite` permission** (Lakehouse): lets a Viewer/Read user write to specified tables/folders (Spark notebooks, OneLake file explorer, OneLake APIs) without item create/manage rights — *not* through the Lakehouse UX. Roles with `ReadWrite` can't carry RLS/CLS.
+- **Virtualized (default) role memberships**: new items ship a **`DefaultReader`** role whose members are virtualized, so they see all data. Membership differs by item type: every user with `ReadAll` on a Lakehouse or mirrored database, but every user with `Read` on an Azure Databricks mirrored catalog or a mirrored catalog (Learn, 2026-10-06). Restrict by deleting `DefaultReader`, removing that permission, or replacing it with a custom role.
+- **Gotcha — remove from DefaultReader**: after adding a user to a scoped data access role, **remove them from `DefaultReader`**, or they retain full access through it and the scoped role is moot.
+- **Gotcha — switching an endpoint to user's-identity mode is destructive**: its existing SQL roles are deleted and can't be recovered, and SQL RLS, CLS and table `GRANT`s stop applying (`GRANT` on views, procedures and functions still works); a switch either way removes inline metadata objects, table-valued and scalar functions among them; and every SQL analytics endpoint in the workspace goes briefly unavailable, its running and queued queries cancelled. Script the SQL security and functions first, and switch out of hours (Learn, 2026-10-13).
+- **Engine enforcement (GA)**: Lakehouse, Spark notebooks, SQL analytics endpoint in **user's-identity mode**, Direct Lake on OneLake, Eventhouse and Graph in Fabric all apply RLS/CLS filtering; authorized third-party engines and any engine through the Table Read API are still public preview ([Read data secured with OneLake security](https://learn.microsoft.com/fabric/onelake/security/read-secured-data), read 2026-11-14). For *user access* (unauthorized external engines) to RLS/CLS data, the query is **blocked**, not silently filtered.
+- **Admin/Member/Contributor still override**: their implicit OneLake `Write` permission overrides any OneLake security `Read` role — these roles are not constrained by data access roles (consistent with the RLS/CLS/DDM bypass above).
+- Role-definition changes take ~5 min to apply; user-group membership changes ~1 hr (plus per-engine cache).
+
+## Sensitivity Labels (REST-discoverable)
+
+Item-level Purview labels became programmatically discoverable on the core item REST surface in March 2026 GA: `GET /v1/workspaces/{wsId}/items` and `GET /v1/workspaces/{wsId}/items/{itemId}` now include `sensitivityLabel: { "sensitivityLabelId": "<labelGuid>" }` on the `Item` object when a label is applied (field omitted on unlabeled items). Note the inner field is `sensitivityLabelId` at runtime — the MS Learn schema page calls it `id`, but the live API returns `sensitivityLabelId` (verified on 233/233 labeled items, May 2026). Any caller with the Viewer workspace role + `Workspace.Read.All` can read it — no admin elevation needed — making label-coverage audits possible without Fabric admin privileges. Only the GUID is returned; resolve to a human-readable name via Microsoft Graph `/security/informationProtection/sensitivityLabels`. Setting or removing labels still requires the existing admin APIs (`/v1/admin/items/bulkSetLabels` / `bulkRemoveLabels` — note the `items` path, though Learn files the reference under Labels; Fabric admin role, `Tenant.ReadWrite.All`, and **`User` only: service principals and managed identities are rejected**). See [[rest-api]] for the response shape, and [[catalog-governance]] for label-coverage audits and the bulk-write gate.
+
+## Reference
+
+- Microsoft Learn: [Security in Microsoft Fabric (overview)](https://learn.microsoft.com/fabric/security/security-overview)
+- Microsoft Learn: [Permission model](https://learn.microsoft.com/fabric/security/permission-model)
+- Microsoft Learn: [OneLake security — get started](https://learn.microsoft.com/fabric/onelake/security/get-started-onelake-security)
+- Comprehensive MS Learn link bundle (concept / workspace+item / OneLake security / per-item auth / workspace identity & SPN / network security / sensitivity labels / troubleshooting): [references/REFERENCE.md](references/REFERENCE.md)
+
+## See also
+
+- data-items skill, its Warehouse reference — SQL GRANT/DENY surface on Warehouse
+- rest-api skill — token audiences for each access path, in its `references/auth.md`

@@ -1,0 +1,103 @@
+# The workflow the audit-repo skill scaffolds for an organization's repo,
+# copied to .github/workflows/claude.yml: the Claude Code GitHub Action, in
+# its interactive mode. A run starts on a `@claude` mention in an issue
+# comment, a pull request comment or review, or a new issue's title or
+# body; Claude answers in a comment and can push commits and open pull
+# requests. Derived from the action's examples/claude.yml at v1.0.277
+# (read 2026-11-16), less its `assigned` trigger: with no assignee_trigger
+# set, assigning an issue whose body names @claude would start the job
+# again, since its `if:` reads the body on any issues event.
+#
+# Every `uses:` is pinned to a full commit SHA, its tag kept as a comment,
+# where the docs' copy names @v1, which the audit's pin check warns of.
+# Re-pin by the commit each tag names, as the skill's step 4 says.
+#
+# AUTHENTICATION: keep exactly one of the four blocks below, chosen at the
+# offer, and delete the rest; a static credential beside the federation
+# inputs wins over them, so federation would go unused (the action's
+# docs/setup.md, read 2026-11-16).
+#   1. A Claude Console API key, the ANTHROPIC_API_KEY secret. One stored
+#      as an organization secret serves every repo.
+#   2. A subscription token from `claude setup-token`, the
+#      CLAUDE_CODE_OAUTH_TOKEN secret, tied to the subscription of whoever
+#      made it, so not one to share across an organization's repos.
+#   3. Claude Console workload identity federation: the workflow's OIDC
+#      token is exchanged for a short-lived one through a Console service
+#      account, so no key is stored. The rule and organization IDs are
+#      Actions variables, an organization's or the repo's.
+#   4. Microsoft Foundry by OIDC: an Entra application, or a user-assigned
+#      managed identity, with a federated credential for this repo and the
+#      Foundry User role on the resource; its three AZURE_* secrets are IDs,
+#      not keys. Uncomment the azure/login step and the env: block too.
+# id-token: write serves the action's own GitHub App sign-in as well as
+# 3 and 4, so it stays whichever is kept.
+#
+# The Claude GitHub App must be installed on the repo, by an organization
+# owner for an organization's repo; this file installs nothing and sets no
+# secret. On a public repo any account's mention starts a run, and every
+# step before the action's own write-access check runs for it, the Azure
+# sign-in included (code.claude.com github-actions and
+# github-actions-cloud-providers, read 2026-11-16).
+name: Claude Code
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+  pull_request_review:
+    types: [submitted]
+  issues:
+    types: [opened]
+
+jobs:
+  claude:
+    if: |
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
+      (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
+    runs-on: ubuntu-latest
+    # A cap on a runaway run, as the docs' Manage costs advises; raise it
+    # where a repo's real requests need longer.
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+      actions: read # lets Claude read CI results on a pull request
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+
+      # 4. Microsoft Foundry only: sign in to Azure by the workflow's OIDC
+      # token, which Claude Code then reads through the default credential
+      # chain.
+      # - name: Authenticate to Azure
+      #   uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
+      #   with:
+      #     client-id: ${{ secrets.AZURE_CLIENT_ID }}
+      #     tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+      #     subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Run Claude Code
+        uses: anthropics/claude-code-action@d1f58ad5e6f4d2b79547e63e37c2116064135896 # v1.0.277
+        with:
+          # 1. A Claude Console API key
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+
+          # 2. A subscription token
+          # claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+          # 3. Claude Console workload identity federation
+          # anthropic_federation_rule_id: ${{ vars.ANTHROPIC_FEDERATION_RULE_ID }}
+          # anthropic_organization_id: ${{ vars.ANTHROPIC_ORGANIZATION_ID }}
+
+          # 4. Microsoft Foundry, the model a deployment in the resource
+          # use_foundry: "true"
+          # claude_args: '--model <deployment-model-id>'
+      #   env:
+      #     ANTHROPIC_FOUNDRY_RESOURCE: <foundry-resource-name>

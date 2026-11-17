@@ -1,0 +1,473 @@
+# Fabric deployment pipelines (service-side)
+
+The **service-side** ALM surface: a pipeline of ordered stages, each
+holding one workspace, promoting content from one stage to the next. The
+**workspace is the source of truth** — no local code, no repository.
+Driven from the portal, or from the Fabric Core REST API under
+`https://api.fabric.microsoft.com/v1/deploymentPipelines`.
+
+## Concepts
+
+- A pipeline has **2 to 10 stages** (default 3). **The number of stages
+  and their names are permanent** once the pipeline is created — only a
+  stage's *public* flag can change afterwards.
+- Each stage holds **at most one workspace**, and a workspace can be
+  assigned to **at most one** pipeline stage, tenant-wide.
+- Deploys run between **adjacent** stages, in either direction.
+- **Backward deploys** (prod → test) work **only when the target stage is
+  empty**, and support **full deployment only** — selective deployment is
+  not available backwards.
+- A deploy copies **metadata, not data**. Semantic models and dataflows
+  arrive empty; refresh in the target stage afterwards.
+
+## Permissions: two independent systems
+
+Pipeline permissions and workspace permissions are **granted and managed
+separately, and you generally need both**. This is the single most common
+source of a confusing 403.
+
+- A pipeline has exactly **one** permission: **Admin**. It is the *lowest*
+  deployment-pipeline permission and is **required for every
+  deployment-pipeline operation** — there is no viewer-level pipeline role.
+- Pipeline access alone grants **nothing** over workspace content. A
+  pipeline admin with no workspace role can see and share the pipeline,
+  but cannot view its content or deploy.
+- To **deploy**: pipeline Admin **and** at least Contributor on **both**
+  the source and target workspaces.
+- To **assign** a workspace: pipeline Admin **and** workspace **Admin** of
+  the workspace being assigned.
+- **GCC**: deploying requires at least **Member** of both workspaces;
+  contributor is not supported there.
+
+**On a 403, say which of the two is missing.** "You need pipeline access"
+and "you need a workspace role" send the user to different people; a bare
+"permission denied" sends them nowhere.
+
+**A documented inconsistency worth knowing when assigning.** Two Learn
+pages disagree on the adjacent-stage requirement:
+[assign-pipeline](https://learn.microsoft.com/fabric/cicd/deployment-pipelines/assign-pipeline#considerations-and-limitations)
+says you need at least workspace **contributor** on the workspaces in
+adjacent stages, while
+[troubleshoot-cicd](https://learn.microsoft.com/fabric/cicd/troubleshoot-cicd#error-message-workspace-member-permissions-needed)
+titles the same failure *"workspace member permissions needed"* and says
+**member**. The error text says member; ask for member when the
+contributor grant doesn't clear it.
+
+Full permissions and per-action tables:
+[deployment-pipelines-tables.md](deployment-pipelines-tables.md).
+
+## Delegated scopes
+
+Scopes are **per operation**, and they govern **delegated (user) access
+only**. A service principal or managed identity on client credentials
+requests `https://api.fabric.microsoft.com/.default` and is authorized
+by Fabric rather than Entra — the tenant setting *Service principals can
+call Fabric public APIs* (older Learn pages: *can use Fabric APIs*), plus
+*Service principals can create workspaces, connections, and deployment
+pipelines* to create a pipeline, pipeline Admin, and the workspace roles
+above (`rest-api`'s `references/auth.md`, *Decoding a token to
+debug 401s*). Skip API
+permissions on that app registration entirely, as the docs say outright;
+there is no `Pipeline.Deploy` to grant an SPN, and delegated scopes on
+the registration do nothing for its token.
+
+| Operation | Required delegated scope |
+|---|---|
+| List / Get pipelines, stages, stage items, operations | `Pipeline.Read.All` **or** `Pipeline.ReadWrite.All` |
+| Create / Update / Delete pipeline, Update stage, role assignments | `Pipeline.ReadWrite.All` |
+| Assign / Unassign workspace | `Pipeline.ReadWrite.All` **and** `Workspace.ReadWrite.All` |
+| **Deploy stage content** | **`Pipeline.Deploy`** or **`DeploymentPipeline.Deploy.All`**; add `Item.Execute.All` when a deployment plan is attached |
+
+**Deploy has its own scope.** An app holding only
+`Pipeline.ReadWrite.All` can create pipelines and assign workspaces and
+still cannot deploy.
+
+**An `az` token deployed without it.** A token from
+`az account get-access-token` for `https://api.fabric.microsoft.com`
+carries `scp` `user_impersonation` alone, and with one List Deployment
+Pipelines, List Stages, List Stage Items, List and Get Operations and
+Deploy Stage Content all succeeded (Azure CLI 2.90.0, one client estate,
+2026-10-13; unverified here). No Learn page read says why, so read the
+table as what an app registration must request, not as a scope an `az`
+token lacks (inferred).
+
+**Service principals and managed identities** are supported on the read
+and assign operations. On **deploy** they are supported *"only when all
+the items involved in the operation support service principals"* — so one
+unsupported item type in the stage fails the whole deploy for an SPN.
+Dataflows never support service principals.
+
+## The REST surface
+
+Base: `https://api.fabric.microsoft.com/v1`.
+
+| Operation | Method + path |
+|---|---|
+| List pipelines | `GET /deploymentPipelines` |
+| Create pipeline | `POST /deploymentPipelines` |
+| Get / Update / Delete pipeline | `GET\|PATCH\|DELETE /deploymentPipelines/{id}` |
+| List / Get stages | `GET /deploymentPipelines/{id}/stages[/{stageId}]` |
+| Update stage | `PATCH /deploymentPipelines/{id}/stages/{stageId}` |
+| **List stage items** | `GET /deploymentPipelines/{id}/stages/{stageId}/items` |
+| **Assign workspace** | `POST /deploymentPipelines/{id}/stages/{stageId}/assignWorkspace` |
+| Unassign workspace | `POST /deploymentPipelines/{id}/stages/{stageId}/unassignWorkspace` |
+| **Deploy stage content** (LRO) | `POST /deploymentPipelines/{id}/deploy` |
+| List / Get operations | `GET /deploymentPipelines/{id}/operations[/{operationId}]` |
+| Role assignments | `GET\|POST\|DELETE /deploymentPipelines/{id}/roleAssignments[/{principalId}]` |
+
+The **bold** rows were read from their own reference pages (2026-09-12).
+The rest are named in Learn's
+[API function list](https://learn.microsoft.com/fabric/cicd/deployment-pipelines/pipeline-automation-fabric#deployment-pipelines-api-functions)
+and follow the same path shape — check the per-operation reference before
+scripting one.
+
+**Never guess IDs.** Resolve pipeline, stage and workspace IDs by listing
+and filtering on `displayName`.
+
+### Through `fab`
+
+There are no native `fab` verbs for deployment pipelines — use `fab api`.
+**Mind the audience: the two surfaces are different APIs.**
+
+```bash
+# Fabric Core surface (this reference) — DEFAULT audience, no -A flag
+fab api "deploymentPipelines"
+fab api "deploymentPipelines/$PIPELINE_ID/stages"
+fab api "deploymentPipelines/$PIPELINE_ID/stages/$STAGE_ID/items"
+fab api -X post "deploymentPipelines/$PIPELINE_ID/stages/$STAGE_ID/assignWorkspace" \
+  -i '{"workspaceId":"<ws>"}'
+
+# Older Power BI pipelines surface — REQUIRES -A powerbi
+fab api -A powerbi pipelines                    # user pipelines
+fab api -A powerbi admin/pipelines              # tenant-wide (admin)
+```
+
+Reaching a `deploymentPipelines` path with `-A powerbi`, or a `pipelines`
+path without it, is a 404 that reads like a missing feature.
+
+## Deploying
+
+```jsonc
+{
+  "sourceStageId": "<uuid>",          // required
+  "targetStageId": "<uuid>",          // required
+  "items": [                          // omit to deploy ALL supported items
+    { "sourceItemId": "<uuid>", "itemType": "SemanticModel" },
+    { "sourceItemId": "<uuid>", "itemType": "Report" }
+  ],
+  "note": "Promote reviewed model + report",   // max 1024 chars
+  "options": { "allowCrossRegionDeployment": false },
+  "createdWorkspaceDetails": {        // REQUIRED when target stage is empty
+    "name": "Sales — Test",
+    "capacityId": "<uuid>"            // defaults to the source stage capacity
+  }
+}
+```
+
+Write the body to a file rather than inlining it — a multi-line inline
+JSON body is mangled on Windows shells.
+
+**Attaching a deployment plan (preview)** adds an explicit item order and
+pre- or post-deploy actions; it never changes which items deploy. Add
+`?beta=true` to the deploy URL, put the plan **inside** the existing
+`options` — `"deploymentPlan": { "itemId": "<plan item id>",
+"referenceType": "ByItemId" }`, with `referenceType` case-sensitive — and
+add `Item.Execute.All` to the token (Learn, 2026-10-06). One plan per
+operation, attached on every call, with no default plan; a failed
+deployment is not rolled back; a plan can't switch a Variable Library's
+active value set.
+
+**Per-item options** go in the same `options`:
+`"itemOptionsBySourceItemId": [ { "sourceItemId": "<uuid>", "options":
+{ "validateOnly": true } } ]`, each item at most once, its option names
+those of the item type's Update Definition API. Learn shows
+`validateOnly` only in an example, not in a definitions table
+(2026-10-06).
+
+**It is a long-running operation with two success shapes.** Usually the
+call returns **`202 Accepted`** with an empty body and the operation ID
+in the **`x-ms-operation-id` response header** (alongside `Location`,
+`deployment-id` and `Retry-After`); poll `GET /v1/operations/{id}` until
+the state is terminal. The reference also documents **`200 OK`** with the
+`DeploymentPipelineOperationExtendedInfo` inline — `id`, `status`,
+`executionPlan` — and no headers to follow, so branch on the status code
+before reading a header. `deployment-id` is a **different** UUID from
+`x-ms-operation-id`: the pipeline's own operation ID, by Learn's
+samples, which give one UUID as Deploy Stage Content's `deployment-id`
+and as the ID Get Deployment Pipeline Operation is called with and
+returns (read 2026-10-13), and by one deploy, whose `deployment-id`
+fetched it there, `Succeeded` with its steps, and matched the newest
+entry of List Deployment Pipeline Operations (one client estate,
+2026-10-13). So read a deploy's plan by
+`GET /v1/deploymentPipelines/{id}/operations/{deployment-id}`, never by
+the newest operation, which is another deploy's when two overlap. Poll
+the deploy with `x-ms-operation-id`, and never send that to
+`/v1/deploymentPipelines/{id}/operations/{operationId}`: it answered
+`404` `EntityNotFound`, `resourceType` `DeploymentPipelineOperation`, on
+every one of 85 polls while the deploy succeeded (one client estate,
+2026-10-13). For **24 hours** after completion,
+`GET /v1/operations/{x-ms-operation-id}/result` returns the extended
+result, with `status`, `executionPlan` and an `id` that is the pipeline
+operation's (seen 2026-10-13).
+
+**A failed deploy keeps its error on the step.** The operation reads
+`Failed` with no error of its own. Its `executionPlan.steps[]` has one
+step per item, each with `status`, `sourceAndTarget`
+(`sourceItemDisplayName`, `itemType`) and, on the one that failed,
+`error` (`errorCode`, `message`). The steps after it stay `NotStarted`:
+those items were not deployed, and the next deploy has to carry them
+(observed once, 2026-10-07; fields per Get Deployment Pipeline Operation).
+
+`az rest` does not surface response headers cleanly; use `curl -i` or
+`requests` to capture the header, then poll.
+
+Constraints:
+
+- **Maximum 300 deployed items per request.** Batch larger promotions.
+- **A selective deploy does not propagate deletions.** An item removed
+  from the source stage is not removed from the target. Use a full deploy
+  (omit `items`), or delete the target item by hand — and say so before
+  promoting.
+- Deploying to an empty target stage **creates a workspace**, and the
+  deploying user becomes its **only admin** and the owner of cloned
+  semantic models.
+- `allowPurgeData`, `allowTakeOver` and
+  `allowSkipTilesWithMissingPrerequisites` **do not exist** in the Fabric
+  deployment pipelines deploy call — they are Power BI API only, and work
+  only for Power BI items. The semantic model definition API's own
+  `options.allowPurgeData` is a separate option: the pbi-items skill's
+  `references/tmdl/references/definition-api.md`.
+- **Dataflows are not supported by the Fabric deployment API at all**; use
+  the Power BI `/pipelines` API for those.
+
+## Item pairing and autobinding
+
+**Pairing** is the link between an item and its clone in the adjacent
+stage. It is what makes a deploy *overwrite* rather than *duplicate*.
+There is **no API to set pairing** — it is established automatically, two
+ways:
+
+1. **On deploy** — an unpaired item deployed to the next stage is copied
+   and paired (a *clean deploy*).
+2. **On workspace assignment** — Fabric attempts to pair by **item name**,
+   **item type**, and **folder location as a tie-breaker** when a stage
+   holds duplicates.
+
+Consequences that bite:
+
+- Two items with the **same name, type and folder** in a workspace:
+  **pairing fails and the assignment fails.** Rename or move one.
+- Same name and type in **different folders**: deployment succeeds but the
+  item is **not paired** — so it silently duplicates forever after.
+- **Renaming does not unpair.** Paired items can legitimately have
+  different names.
+- Items added to a workspace **after** assignment are **not** auto-paired,
+  so identical items can sit unpaired in adjacent stages.
+- Observe current pairing through `sourceItemId` / `targetItemId` on
+  `List stage items` — but each appears **only if the caller has
+  contributor access to that stage's workspace**, so a thin result can
+  mean missing permission rather than missing pairing.
+
+**Autobinding** keeps dependencies connected (a report to its semantic
+model). Within a pipeline, a deploy binds to the dependency in the
+*target* stage if it is there, and **fails** if the dependency is neither
+deployed with it nor already present — use *Select related*.
+
+Across pipelines, items bind when they are in **the same pipeline stage**,
+which means **the same numeric stage index, not the same display name**.
+Stages in matching positions bind even when named differently, and two
+stages sharing a name do not bind when their positions differ. Both
+pipelines must have **the same number of stages**.
+
+**Rebinding a Direct Lake semantic model** that a deploy left on the
+source stage's lakehouse takes a rule, and which depends on the flavour:
+
+- **Direct Lake on SQL** (analytics endpoint): a data source rule.
+- **Direct Lake on OneLake**: no data source rule is offered, and the
+  dropdown is greyed out. Hold the workspace and lakehouse GUIDs in `Text`
+  M parameters and give each a **parameter rule** on the target stage.
+  Rules attach to the target's copy, so a first promotion is deploy, set
+  the rules, deploy again, then refresh so the model reframes. The
+  parameter shape is in the `pbi-items` skill, `references/tmdl/tmdl.md`
+  *Direct Lake Configuration*.
+
+**A parameter-controlled connection never autobinds**, even when the
+parameter holds a model or workspace ID. Rebind it by changing the value
+or with a parameter rule. Learn's pages disagree on Direct Lake rules; see
+[deployment-pipelines-tables.md](deployment-pipelines-tables.md).
+
+**A KQL queryset and an Activator's KQL source rebound once, against
+Learn.**
+Learn's dependency-binding table has a queryset find its database by
+`clusterUri` and `databaseName`, its `databaseItemId` "an object ID that
+doesn't rebind", and says deployment pipelines bind as Git does (Learn
+`cross-workspace-dependency-binding`, read 2026-10-13). Yet one first
+deploy of a KQL database, a queryset and an Activator together, all new
+to the target and in one workspace, left the target queryset's
+`dataSources` on the target's database ID and query URI, and the
+Activator's `kqlSource-v1` `eventhouseItem` on the target's database and
+workspace. The Activator's `metadata` link to the queryset kept the IDs
+of the workspace the rule was authored in. In Git both database
+references held the database's `logicalId` (`getDefinition` on both
+sides and the committed files, one client estate, 2026-10-13;
+unverified here). The Activator's did not rebind again: a rule set later
+in the source stage's own portal, which committed object IDs rather
+than the `logicalId`, kept the source stage's database through three
+selective deploys of the Activator alone, each `Succeeded`: over the
+running item, fresh after deleting it, and after Git restored the
+`logicalId` (`getDefinition` and `.show queries` in both stages, the
+same estate, 2026-10-21; Learn's binding table has no Activator KQL
+source row). The difference seen is where the rule was made, by Git or
+in that stage's portal; the cause is unchecked. So read a deployed
+consumer's definition, and its database's `.show queries`, rather than
+assume either binding; an Activator left on the source stage's database
+is rewritten by REST, `rti-items`' `activator.md` § 11. Unread: a
+consumer
+deployed without its database, a database in another workspace, and a
+Real-Time Dashboard, which Learn gives the queryset's pattern.
+
+### Repairing a broken pairing
+
+The only supported repair is to **unassign the workspace from the stage
+and reassign it**, then redeploy.
+
+**Warn before doing it.** Unassigning **permanently destroys that stage's
+deployment history and every deployment rule configured on it**, and
+reassigning does not bring them back. Rules are portal-only with no API to
+read or recreate them, so **ask whether the stage has rules first** and
+have the user record them before you proceed.
+
+## Change detection
+
+**There is no pre-deploy compare API.** The portal's Compare view is
+server-side and not exposed.
+
+`List stage items` returns identity and pairing only — `itemId`,
+`itemDisplayName`, `itemType`, `sourceItemId`, `targetItemId`,
+`lastDeploymentTime`. It carries **no change status**, and
+`lastDeploymentTime` is *"the last deployment date and time of the Fabric
+item"* — the last **deployment**, not the last **edit**. It cannot tell
+you whether anything changed since.
+
+Per-item diff state **does** exist, but only **after the fact**: `Get
+deployment pipeline operation` returns an execution plan whose steps each
+carry `preDeploymentDiffState` (`New` / `Different` / `NoDifference`),
+plus a `preDeploymentDiffInformation` summary. Useful for auditing what a
+deploy did; useless for deciding what to deploy.
+
+So "deploy only what changed" means diffing item **definitions** yourself
+— see the `rest-api` skill for the `getDefinition` contract, which
+differs by item type. Two traps:
+
+- **Deployment rewrites embedded references** in the target: autobinding
+  rewrites pipeline `notebookId`/`workspaceId` and the report-to-model
+  id, and a rule rewrites a Direct Lake model's server/database or
+  parameter values. A paired target's definition therefore differs from
+  its source even when nothing was edited — naive hashing reports false
+  "changed". Normalize those fields before comparing.
+- Do the comparison **in a script** and surface only the change list.
+  Dumping two full definitions per item into context costs far more than
+  the answer is worth.
+
+## Deployment rules
+
+Rules re-point content per stage — a production semantic model to a
+production database, without editing the model.
+
+**Rules are configured in the portal. There is no REST API to create, read
+or recreate them.** Do not claim otherwise, and do not script around them.
+
+| Item | Data source rule | Parameter rule | Default lakehouse rule |
+|---|---|---|---|
+| Dataflow gen1 | yes | yes | — |
+| Semantic model | yes | yes | — |
+| Paginated report | yes | — | — |
+| Mirrored database | yes | — | — |
+| Notebook | — | — | yes |
+
+- You must be the **owner of the item** to set a rule for it, on top of
+  pipeline Admin and a target-workspace role.
+- **Rules cannot be created in the development stage** — they are defined
+  on the *target*.
+- **Rules take effect only on the next deploy to that stage.** Configure,
+  then redeploy; until then the target keeps the old value and the item
+  shows as *different*.
+- Data source rules only swap a source for one of the **same type**, and
+  the same data source cannot appear in two rules.
+- A **parameterized** source takes no data source rule, and neither does
+  a **Direct Lake on OneLake** model: both rebind with parameter rules
+  (see *Item pairing and autobinding*).
+- If the data source or parameter a rule points at is changed or removed
+  in the source stage, the rule becomes invalid and **deployment fails**.
+- Deleting an item deletes its rules irrecoverably, and so does
+  unassigning the workspace.
+- A **Real-Time Dashboard** takes no rule, so its KQL source follows the
+  stage only if something rewrites it: `rti-items`'
+  `realtime-dashboard.md` § *File anatomy*.
+
+Full limitation list:
+[deployment-pipelines-tables.md](deployment-pipelines-tables.md).
+
+## Limits and gotchas
+
+| Symptom / limit | Detail |
+|---|---|
+| Semantic models need Enhanced Metadata | Since **2026-02-12**, deployment pipelines retired support for semantic models not upgraded to Enhanced Metadata |
+| First deploy of a Power BI item fails | Another item in the target stage has the same name *and* type. Rename one |
+| Deployment fails on dependencies | Circular or self dependencies fail the whole deploy |
+| Assignment fails during a deploy | Assign "will fail if there's an active deployment operation" — poll the current operation to a terminal state first |
+| Gateway not mapped after first deploy | The target item's gateway is **not** auto-mapped to its data source. Configure it once by hand in item settings; later deploys leave it alone |
+| Data is missing after deploy | Expected — metadata only. Refresh the dataflow first, then the semantic model |
+| *"Continue the deployment"* message | A schema-breaking change (for example an int column becoming a string) would lose data in the target. Continuing loses it; the alternative is fixing the source and redeploying |
+| Backward deploy button greyed out | You can only deploy backwards into an **empty** stage — and only as a full deployment |
+| Not copied by a deploy | Data, URL, ID, permissions, workspace settings, app content, personal bookmarks; and for semantic models: role assignments, refresh schedule, data source credentials, query caching, endorsement |
+| Data function button after a deploy | A Power BI button that calls a User Data Function stays pinned to the source stage's function, even where the target holds one of the same name, so a test report writes back through dev. Re-point it in the target report ([translytical task flows](https://learn.microsoft.com/power-bi/create-reports/translytical-task-flow-overview)) |
+| Orphaned pipeline (owner left) | A Fabric admin adds an owner or deletes it via the `Admin - Pipelines UpdateUserAsAdmin` API. Until then nobody can unassign its workspaces |
+| Dataflow refreshing during deploy | The deployment fails. Comparing stages during a refresh gives unpredictable results |
+| `TargetArtifactNameConflict` deploying an item whose target copy was just deleted | The deleted item's name stays held briefly: a selective deploy failed so after `DELETE /v1/workspaces/{ws}/items/{id}`, and a retry about a minute later created the item. Wait and retry; rename nothing (seen once, 2026-10-21; unverified, and Learn has nothing on the code) |
+
+**Unverified, from upstream's skill rather than Learn (noted
+2026-09-12).** Plausible field observations, documented nowhere on Learn —
+treat as leads, not facts: a second concurrent operation failing with
+`WorkspaceMigrationOperationInProgress` (HTTP 400); a first deploy after
+assignment failing with `Alm_InvalidRequest_WorkloadUnavailable` for
+~60–120 s while workloads warm up; and a duplicate pipeline `displayName`
+failing with `Alm_InvalidRequest_DuplicateAlmPipelineName`, implying names
+are unique tenant-wide.
+
+## Reference
+
+- Microsoft Learn:
+  [Introduction to deployment pipelines](https://learn.microsoft.com/fabric/cicd/deployment-pipelines/intro-to-deployment-pipelines)
+  · [The deployment pipelines process](https://learn.microsoft.com/fabric/cicd/deployment-pipelines/understand-the-deployment-process)
+  · [Assign a workspace](https://learn.microsoft.com/fabric/cicd/deployment-pipelines/assign-pipeline)
+  · [Create deployment rules](https://learn.microsoft.com/fabric/cicd/deployment-pipelines/create-rules)
+  · [Troubleshoot lifecycle management](https://learn.microsoft.com/fabric/cicd/troubleshoot-cicd)
+- Automation:
+  [Fabric APIs](https://learn.microsoft.com/fabric/cicd/deployment-pipelines/pipeline-automation-fabric)
+  · [Power BI APIs](https://learn.microsoft.com/fabric/cicd/deployment-pipelines/pipeline-automation)
+  · [REST reference](https://learn.microsoft.com/rest/api/fabric/core/deployment-pipelines)
+- PowerShell samples:
+  [`microsoft/fabric-samples` features-samples/fabric-apis](https://github.com/microsoft/fabric-samples/blob/main/features-samples/fabric-apis/DeploymentPipelines-DeployAll.ps1)
+  — deploy all, selective deploy, assign-and-deploy
+- Supported item types, full permissions tables, the complete rules
+  limitation list, and the Fabric-vs-Power BI API differences:
+  [deployment-pipelines-tables.md](deployment-pipelines-tables.md)
+
+## See also
+
+- [fabric-cicd.md](fabric-cicd.md) — the Git-driven counterpart:
+  `publish_all_items`, `parameter.yml`, feature flags
+- [fab-deploy.md](fab-deploy.md) — `fab deploy`, for the Git-driven path
+- rest-api skill — long-running-operation polling and the
+  `getDefinition` contract change detection needs; `fab api` mechanics
+  in its `references/cli.md`; token audiences and service principal
+  setup behind the scopes table, in its `references/auth.md`
+- variable-library skill — a supported item type whose value sets
+  are the other way to vary config per stage
+- pbi-items skill — in `references/tmdl/tmdl.md`, the `Text` M parameters a
+  Direct Lake on OneLake model needs before a parameter rule can rebind
+  it, and its *Gotchas* row on the schema-and-data refresh false alarm on
+  a parameterized Direct Lake model
+- **Not** data-pipeline — that is the Data Factory orchestration
+  item, unrelated to this despite the name

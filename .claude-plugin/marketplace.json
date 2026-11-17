@@ -5,5 +5,88 @@
     "url": "https://github.com/wardawgmalvicious"
   },
   "description": "Claude Code plugins for Microsoft Fabric, Power BI, git and GitHub work, Windows-first.",
-  "plugins": []
+  "plugins": [
+    {
+      "name": "fabric",
+      "source": "./plugins/fabric",
+      "category": "data",
+      "skills": [
+        "./skills/catalog-governance",
+        "./skills/data-items",
+        "./skills/deploy",
+        "./skills/iq-items",
+        "./skills/pbi-items",
+        "./skills/rest-api",
+        "./skills/rti-items",
+        "./skills/security",
+        "./skills/variable-library"
+      ]
+    },
+    {
+      "name": "git",
+      "source": "./plugins/git",
+      "category": "development",
+      "skills": [
+        "./skills/commit-changes",
+        "./skills/land-branch",
+        "./skills/prune-branches",
+        "./skills/review-code"
+      ]
+    },
+    {
+      "name": "github",
+      "source": "./plugins/github",
+      "category": "development",
+      "skills": [
+        "./skills/audit-repo",
+        "./skills/provision-board",
+        "./skills/recreate-repo"
+      ]
+    },
+    {
+      "name": "meta",
+      "source": "./plugins/meta",
+      "category": "productivity",
+      "skills": [
+        "./skills/audit-agent-setup",
+        "./skills/find-session",
+        "./skills/init-user-instructions",
+        "./skills/measure-session-cost",
+        "./skills/scope-instructions",
+        "./skills/ship-plugin"
+      ]
+    },
+    {
+      "name": "essentials",
+      "source": "./plugins/essentials",
+      "category": "productivity",
+      "skills": [
+        "./skills/init-account-instructions",
+        "./skills/init-project-instructions"
+      ]
+    },
+    {
+      "name": "admin",
+      "source": "./plugins/admin",
+      "category": "productivity",
+      "skills": [
+        "./skills/init-org-instructions"
+      ]
+    },
+    {
+      "name": "bash-lsp",
+      "source": "./plugins/bash-lsp",
+      "category": "development"
+    },
+    {
+      "name": "yaml-lsp",
+      "source": "./plugins/yaml-lsp",
+      "category": "development"
+    },
+    {
+      "name": "bicep-lsp",
+      "source": "./plugins/bicep-lsp",
+      "category": "development"
+    }
+  ]
 }

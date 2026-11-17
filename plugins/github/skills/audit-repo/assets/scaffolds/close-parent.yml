@@ -1,0 +1,115 @@
+name: close-parent
+# The workflow the audit-repo skill scaffolds for a repo whose handoff
+# queue is a board, copied to .github/workflows/close-parent.yml unchanged.
+# GitHub closes no parent with its last sub-issue, and a commit cannot say
+# Closes #<parent> when its siblings land in parallel (read 2026-11-01).
+# When an issue closes, this closes its parent once every sub-issue of that
+# parent reads closed. Its close, made with GITHUB_TOKEN, still fires the
+# board's Item closed workflow, which moved each parent's card to Done one
+# to three seconds later (a personal repo, 2026-11-02 and 2026-11-04).
+#
+# No concurrency group: one is shared across parents, and a waiting run
+# would be cancelled by a newer run for another parent. Overlapping runs
+# are safe: the last close's run reads every sibling closed, and closing a
+# closed issue changes nothing. A close made with GITHUB_TOKEN starts no
+# run, so the job walks up the parents itself, and past a parent already
+# closed, whose own run may have stopped before reaching the next one.
+# It trusts its own close over the next read, which may not show it yet
+# (unobserved, 2026-11-05): a stale read there would leave the next parent
+# open with every sub-issue closed, and no run to come back for it.
+#
+# A parent with any sub-issue closed as completed closes as completed, and
+# one with none as not planned, so stateReason still tells a landing from
+# a drop. A parent labelled `standing` takes more sub-issues later, so it
+# stays open and the walk stops there. A parent in another repository is
+# out of this token's reach, so the walk stops there too.
+on:
+  issues:
+    types: [closed]
+permissions:
+  issues: write
+jobs:
+  close-parent:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Close each parent whose sub-issues are all closed
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          query='query($owner: String!, $name: String!, $number: Int!) {
+            repository(owner: $owner, name: $name) {
+              issue(number: $number) {
+                parent {
+                  number
+                  state
+                  repository { nameWithOwner }
+                  labels(first: 100) { nodes { name } }
+                  subIssues(first: 100) {
+                    nodes { number state stateReason repository { nameWithOwner } }
+                  }
+                }
+              }
+            }
+          }'
+          number=$ISSUE_NUMBER
+          closed=
+          closed_as=
+          # GitHub nests sub-issues eight levels deep at most (read
+          # 2026-11-05), so eight steps up reach any top.
+          for _ in 1 2 3 4 5 6 7 8; do
+            reply=$(gh api graphql -f query="$query" \
+              -f owner="${GITHUB_REPOSITORY%%/*}" \
+              -f name="${GITHUB_REPOSITORY#*/}" \
+              -F number="$number")
+            # Assigned first, so a jq failure fails the step: read through a
+            # process substitution would pass it as an issue with no parent.
+            # The parent this run closed a step ago counts as closed, with
+            # the reason written: a read that still showed it open would stop
+            # the walk, and its close starts no run to come back for this one.
+            fields=$(jq -rb --arg repo "$GITHUB_REPOSITORY" \
+              --arg closed "$closed" --arg closed_as "$closed_as" \
+              '.data.repository.issue.parent // empty
+              | [.subIssues.nodes[]
+                 | if $closed != "" and (.number | tostring) == $closed
+                     and .repository.nameWithOwner == $repo
+                   then .state = "CLOSED" | .stateReason = ($closed_as | ascii_upcase)
+                   else . end] as $subs
+              | [.number, .state, .repository.nameWithOwner,
+                 ([.labels.nodes[].name] | index("standing") != null),
+                 ([$subs[] | select(.state == "OPEN")] | length),
+                 ([$subs[] | select(.stateReason == "COMPLETED")] | length)]
+              | @tsv' <<<"$reply")
+            read -r parent state repo standing open completed <<<"$fields"
+            closed=
+            if [ -z "$parent" ]; then
+              echo "#$number has no parent"
+              break
+            fi
+            if [ "$repo" != "$GITHUB_REPOSITORY" ]; then
+              echo "#$number has its parent in $repo: left alone"
+              break
+            fi
+            if [ "$open" -gt 0 ]; then
+              echo "#$parent has $open open sub-issues"
+              break
+            fi
+            if [ "$standing" = true ]; then
+              echo "#$parent is standing: left open"
+              break
+            fi
+            if [ "$state" = OPEN ]; then
+              reason=not_planned
+              if [ "$completed" -gt 0 ]; then
+                reason=completed
+              fi
+              gh api --method PATCH "repos/$GITHUB_REPOSITORY/issues/$parent" \
+                -f state=closed -f state_reason="$reason" --silent
+              echo "#$parent closed as $reason"
+              closed=$parent
+              closed_as=$reason
+            fi
+            number=$parent
+          done
