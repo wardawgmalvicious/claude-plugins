@@ -1,0 +1,6 @@
+# Text files are stored and checked out LF on every platform. `eol=lf` is
+# what keeps a Windows checkout (core.autocrlf false, core.eol native) from
+# writing them back CRLF, which would show every touched file as changed.
+* text=auto eol=lf
+
+*.png binary
