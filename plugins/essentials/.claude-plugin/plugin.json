@@ -1,0 +1,7 @@
+{
+  "name": "essentials",
+  "description": "Writes your claude.ai instructions: the personal Instructions for Claude block that loads in chat and Cowork, and a Claude Project's instructions.",
+  "author": {
+    "name": "wardawgmalvicious"
+  }
+}
