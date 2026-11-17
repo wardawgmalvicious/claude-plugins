@@ -1,7 +1,8 @@
 # claude-plugins
 
 A [Claude Code plugin marketplace](https://code.claude.com/docs/en/plugin-marketplaces)
-of skills for Microsoft Fabric, Power BI, git and GitHub work. The
+of skills for Microsoft Fabric, Power BI, git and GitHub work, and
+Godot games. The
 marketplace is named `wardawgmalvicious`, so each plugin installs as
 `<plugin>@wardawgmalvicious`. Most of these skills were written on
 Windows and say so where a step is Windows-only.
@@ -35,6 +36,7 @@ fetches the latest.
 | `meta` | Claude Code itself: agent setup audits, finding past sessions, user-scope `CLAUDE.md`, session cost, instruction placement, shipping plugins | Claude Code | `/plugin install meta@wardawgmalvicious` |
 | `essentials` | Your claude.ai Instructions for Claude block and a Project's instructions | claude.ai chat, Cowork, Claude Code | `/plugin install essentials@wardawgmalvicious` |
 | `admin` | A claude.ai organization's Organization instructions, for its Owners | claude.ai chat, Cowork, Claude Code | `/plugin install admin@wardawgmalvicious` |
+| `game-dev` | Godot 4 games from files and the command line on Windows: a pinned editor, static typing, hand-edited scenes, pixel art, headless runs and export, Steam through GodotSteam | Claude Code | `/plugin install game-dev@wardawgmalvicious` |
 | `bash-lsp` | Bash language server for `.sh` files; [install the server first](plugins/bash-lsp/README.md) | Claude Code | `/plugin install bash-lsp@wardawgmalvicious` |
 | `yaml-lsp` | YAML language server for `.yml` and `.yaml` files; [install the server first](plugins/yaml-lsp/README.md) | Claude Code | `/plugin install yaml-lsp@wardawgmalvicious` |
 | `bicep-lsp` | Bicep language server for `.bicep` files; [install the server first](plugins/bicep-lsp/README.md) | Claude Code | `/plugin install bicep-lsp@wardawgmalvicious` |
