@@ -4,7 +4,7 @@
     "name": "wardawgmalvicious",
     "url": "https://github.com/wardawgmalvicious"
   },
-  "description": "Claude Code plugins for Microsoft Fabric, Power BI, git and GitHub work, Windows-first.",
+  "description": "Claude Code plugins for Microsoft Fabric, Power BI, git and GitHub work, and Godot games, Windows-first.",
   "plugins": [
     {
       "name": "fabric",
@@ -71,6 +71,14 @@
       "category": "productivity",
       "skills": [
         "./skills/init-org-instructions"
+      ]
+    },
+    {
+      "name": "game-dev",
+      "source": "./plugins/game-dev",
+      "category": "development",
+      "skills": [
+        "./skills/godot"
       ]
     },
     {

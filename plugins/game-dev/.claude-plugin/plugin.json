@@ -1,0 +1,12 @@
+{
+  "name": "game-dev",
+  "description": "Game development for Claude Code: Godot 4 projects worked from files and the command line on Windows, with one pinned editor version, enforced static typing, hand-edited scenes and resources, pixel-art settings, headless runs and export, and Steam through GodotSteam.",
+  "author": {
+    "name": "wardawgmalvicious",
+    "url": "https://github.com/wardawgmalvicious"
+  },
+  "homepage": "https://github.com/wardawgmalvicious/claude-plugins",
+  "repository": "https://github.com/wardawgmalvicious/claude-plugins",
+  "license": "MIT",
+  "keywords": ["claude-code", "game-dev", "godot", "gdscript", "steam"]
+}
