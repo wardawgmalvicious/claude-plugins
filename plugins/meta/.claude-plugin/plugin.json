@@ -1,0 +1,12 @@
+{
+  "name": "meta",
+  "description": "Skills about Claude Code itself: audit a repo's agent setup, find a past session, write your user-scope CLAUDE.md, measure what a session cost, sort instructions into the files that load them, and ship a plugin that installs and runs.",
+  "author": {
+    "name": "wardawgmalvicious",
+    "url": "https://github.com/wardawgmalvicious"
+  },
+  "homepage": "https://github.com/wardawgmalvicious/claude-plugins",
+  "repository": "https://github.com/wardawgmalvicious/claude-plugins",
+  "license": "MIT",
+  "keywords": ["claude-code", "claude-md", "plugins", "sessions"]
+}
