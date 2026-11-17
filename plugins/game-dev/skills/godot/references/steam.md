@@ -40,7 +40,9 @@ master or dedicated server (`what_are_you_making.md`).
      later), which also offers to initialize at start and to embed
      callbacks. Embedded callbacks were broken in 4.14, where only a
      `run_callbacks()` in `_process()` worked, and turning on both
-     options crashes the editor, which the page says 4.16 fixes.
+     options crashes the editor. The page says 4.16 fixes that, but
+     the two run together only from 4.23, by the changelog
+     (`changelog/godot4.md`, read 2026-11-17).
   2. **The first argument of `Steam.steamInitEx(app_id,
      embed_callbacks)`**.
   3. `OS.set_environment("SteamAppId", ...)` and `"SteamGameId"`, what
@@ -60,8 +62,8 @@ master or dedicated server (`what_are_you_making.md`).
 
 **Nothing Steam sends arrives unless `Steam.run_callbacks()` runs**,
 "preferably every frame": put it in `_process()` of an autoload, or pass
-`true` as `embed_callbacks`, broken in 4.14 (above). A `run_callbacks()` in a node that pauses
-stops when it does (`initializing.md`). An autoload is a child of the
+`true` as `embed_callbacks`, broken in 4.14 (above). A
+`run_callbacks()` in a node that pauses stops when it does (`initializing.md`). An autoload is a child of the
 root, whose `process_mode` is Pausable, and a node inherits its
 parent's by default (Node reference; `singletons_autoload.rst`; read
 2026-11-16), so the autoload sets its own:

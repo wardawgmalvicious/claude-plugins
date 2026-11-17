@@ -201,8 +201,10 @@ there, not in git.
 ## 6. Pixel art
 
 The docs' recipe for pixel art (multiple_resolutions.rst, read
-2026-11-16) sets the `[display]` lines; the `[rendering]` two, and each
-setting's meaning, are from the ProjectSettings reference (read 2026-11-16):
+2026-11-16) sets the `[display]` lines and gives the quoted reasons;
+the `[rendering]` two, and the rest of each setting's meaning, are from
+the ProjectSettings reference (read 2026-11-16), Nearest being this
+skill's choice, not a page's:
 
 ```ini
 [display]
