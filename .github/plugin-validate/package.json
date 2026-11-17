@@ -1,0 +1,8 @@
+{
+  "name": "claude-plugins-plugin-validate",
+  "private": true,
+  "description": "Pins Claude Code for its plugin validator in CI.",
+  "devDependencies": {
+    "@anthropic-ai/claude-code": "2.1.312"
+  }
+}
