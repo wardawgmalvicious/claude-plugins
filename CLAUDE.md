@@ -20,6 +20,19 @@ source repository in a file here.
 its `skills` paths, which the second install route, `npx skills add`,
 reads from the same file.
 
+**A plugin ships no earlier than what it depends on.** A bare name in
+`dependencies` resolves in this marketplace, and a plugin whose
+dependency is not installed stays disabled, `Dependency "<name>" is
+not installed`, so a dependency's folder and entry land in the same
+change as the first export that declares it, or before. A plugin with
+no `plugin.json` takes its `dependencies` in its entry here, by hand,
+as the source's entry has them. After `claude plugin update`, a new
+dependency installs on `/reload-plugins`, and the marketplace's
+auto-update installs it itself (Claude Code docs, plugins/dependencies,
+read 2026-11-18). Untested from this marketplace: read
+`claude plugin list --json`'s `errors` in a throwaway
+`CLAUDE_CONFIG_DIR` before announcing one.
+
 ## Checks
 
 ```bash
