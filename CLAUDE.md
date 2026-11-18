@@ -28,7 +28,8 @@ change as the first export that declares it, or before. A plugin with
 no `plugin.json` takes its `dependencies` in its entry here, by hand,
 as the source's entry has them. After `claude plugin update`, a new
 dependency installs on `/reload-plugins`, and the marketplace's
-auto-update installs it itself (Claude Code docs, plugins/dependencies,
+auto-update, off by default here until a user turns it on, installs it
+itself (Claude Code docs, plugins/dependencies and plugins/install,
 read 2026-11-18). Untested from this marketplace: read
 `claude plugin list --json`'s `errors` in a throwaway
 `CLAUDE_CONFIG_DIR` before announcing one.
