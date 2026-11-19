@@ -90,11 +90,12 @@ line. An unset option counts as on.
 ## For a plugin that needs these tools
 
 List it in `dependencies`, in `plugin.json` or the marketplace entry,
-naming its marketplace:
+naming its marketplace, the `name` in the `marketplace.json` this
+plugin is installed from:
 
 ```json
 "dependencies": [
-  { "name": "toolchain", "marketplace": "wardawgmalvicious" }
+  { "name": "toolchain", "marketplace": "<marketplace>" }
 ]
 ```
 
@@ -108,7 +109,7 @@ plugins/dependencies, read 2026-11-18). From a marketplace install, the
 bare name, `"toolchain@<marketplace>"` and the form above each
 installed `toolchain` with `fabric` (a throwaway config, 2.1.327,
 2026-11-18). A plugin in another marketplace also needs that
-marketplace's `marketplace.json` to list `wardawgmalvicious` in
+marketplace's `marketplace.json` to list `<marketplace>` in
 `allowCrossMarketplaceDependenciesOn`, unless `toolchain` is already
 installed and enabled at the same scope.
 
