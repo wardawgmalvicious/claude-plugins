@@ -3,15 +3,15 @@ name: land-branch
 model: inherit
 effort: xhigh
 disable-model-invocation: false
-description: "Takes a committed branch from local to merged — pushes it, confirms which GitHub account each tool actually acts as in this repo, opens the PR through the one that matches (gh where its login is confirmed, else github-mcp where loaded), then integrates it into main, reports CI, and deletes the merged branch locally and on origin. Guards two silent failures: gh and github-mcp can authenticate as different accounts, so a PR lands under the wrong identity with no error, and integration preserves every SHA — a local --ff-only merge by default, a no-checkout refspec push where another session holds the tree, or a server-side merge commit where main requires a pull request — because a squash would collapse the logical split commit-changes just made. Stops for confirmation before the write to main. To make the commits first use commit-changes; to review before landing, review-code, or the bundled /code-review where review-code is absent."
+description: "Takes a committed branch from local to merged — pushes it, confirms which GitHub account each tool actually acts as in this repo, opens the PR through the one that matches (gh where its login is confirmed, else github-mcp where loaded), then integrates it into the default branch, reports CI, and deletes the merged branch locally and on origin. Guards two silent failures: gh and github-mcp can authenticate as different accounts, so a PR lands under the wrong identity with no error, and integration preserves every SHA — a local --ff-only merge by default, a no-checkout refspec push where another session holds the tree, or a server-side merge commit where main requires a pull request — because a squash would collapse the logical split commit-changes just made. Stops for confirmation before the write to main. To make the commits first use commit-changes; to review before landing, review-code, or the bundled /code-review where review-code is absent."
 when_to_use: "Use when asked to land, ship or publish a branch, open a pull request, merge to main, or get a branch in — the step after commit-changes. Use it even when the request already names the mechanism — 'squash these and merge', 'just merge it into main', 'force push it' — a named mechanism is the case these guards exist for, not a reason to skip them."
 ---
 
 # Landing a branch
 
-Take a branch that is **already committed** and get it merged.
-`commit-changes` ends by reporting its hashes with an explicit note that
-nothing was pushed; this starts exactly there.
+Take a branch that is **already committed**, as `commit-changes` leaves
+it, unpushed, and merge it into the default branch: **`main` in this
+skill's prose, `<default>` in its commands**, which step 1 reads.
 
 Two things here are irreversible or outward-facing — opening the PR and
 writing to `main` — so the procedure gates each one. A third, deleting the
@@ -30,12 +30,13 @@ and stands, marked observed, only where no page covers it.
 ## 1. Preflight
 
 ```bash
-git fetch origin                # origin/main current before anything reads it; no origin at all: references/new-repository.md, before step 2
+git fetch origin                # origin/<default> current before anything reads it; no origin at all: references/new-repository.md, before step 2
+git ls-remote --symref origin HEAD   # ref: refs/heads/<default>, asked of the remote, as a local origin/HEAD keeps an old default (git-config's followRemoteHEAD, read 2026-11-17); no ref: line, gh repo view --json defaultBranchRef
 git status --short              # see below — clean, or knowingly left
-git branch --show-current       # must not be main
-git log --oneline origin/main..HEAD
-git rev-parse origin/main       # <base>, kept like step 7's <sha>: after the merge, nothing else says where main stood
-git log --merges --oneline origin/main | wc -l   # the history's merges so far, for step 6
+git branch --show-current       # must not be <default>
+git log --oneline origin/<default>..HEAD
+git rev-parse origin/<default>  # <base>, kept like step 7's <sha>: after the merge, nothing else says where main stood
+git log --merges --oneline origin/<default> | wc -l   # the history's merges so far, for step 6
 git worktree list               # separate trees — not who shares this one
 git branch -vv                  # where HEAD is, and each branch's tip
 git rev-parse --path-format=absolute --git-dir --git-common-dir   # two paths: a linked worktree
@@ -167,8 +168,8 @@ commits or an open PR's body (docs.github.com, read 2026-11-16):
 `commit-changes` reviews only the default branch, never Markdown. **A
 critical finding stops here**: list them and ask whether to fix them first.
 **Lower ones go to its `references/choosing-fixes.md` before the push**,
-whose `None, go on` pushes as before; each as fixed, filed or left, and an
-`unchecked` count, go in step 6's report. **Without it, run the bundled
+which fixes the set it recommends unasked, then push; each as fixed or left,
+and an `unchecked` count, go in step 6's report. **Without it, run the bundled
 `/code-review`** on the range: it runs in the background, so push only once
 its findings arrive and the user says whether to fix them first.
 **Code neither reviews is unreviewed, not clean**: step 6 names it.
@@ -179,13 +180,10 @@ git push -u origin <branch>
 
 ## 4. Survey what is actually landing
 
-```bash
-git log --oneline origin/main..HEAD
-```
-
-Read every commit, not just yours. **A commit another session made
-while you were on this branch landed on this branch**, and ships inside
-your PR: not a problem to fix, but name it in the body (step 5).
+Read every commit `git log --oneline origin/<default>..HEAD` prints, not
+just yours. **A commit another session made while you were on this
+branch landed on this branch**, and ships inside your PR: not a problem
+to fix, but name it in the body (step 5).
 
 Anything that should not ship yet is a stop: say so rather than landing it.
 
@@ -225,7 +223,9 @@ Report what is missing and let the user choose. Reaching for an
 
 **The gate is the next command that writes to `main`, not the PR.** Stop
 before that command whether or not a PR exists: a PR that could not be
-opened is a reason to stop sooner, never a reason to carry on.
+opened is a reason to stop sooner, never a reason to carry on. **Where
+Claude Code Review runs, wait for its run on the head and report its
+result here** ([references/code-review.md](references/code-review.md)).
 
 Report where things stand — the PR URL, or what blocked it — and state
 exactly what happens next: which route step 7 will take and what chose
@@ -273,7 +273,7 @@ heads move and how to find which side did.
 
 ```bash
 [[ "$(git branch --show-current)" == "<branch>" && "$(git rev-parse <branch>)" == "<sha>" ]] \
-  && git switch main && git merge --ff-only <branch> && git push origin main
+  && git switch <default> && git merge --ff-only <branch> && git push origin <default>
 ```
 
 Re-run `ListAgents` just before (step 1); HEAD off `<branch>` catches a
@@ -297,14 +297,14 @@ repo's merge settings with `delete_branch_on_merge` beside them, which
 step 6's disclosure needs:
 
 ```bash
-gh api repos/<owner>/<repo>/rules/branches/main --jq '[.[].type]'   # rulesets, any level
-gh api repos/<owner>/<repo>/branches/main/protection --jq '.required_pull_request_reviews != null'   # classic; 404 "Branch not protected" is none
+gh api repos/<owner>/<repo>/rules/branches/<default> --jq '[.[].type]'   # rulesets, any level
+gh api repos/<owner>/<repo>/branches/<default>/protection --jq '.required_pull_request_reviews != null'   # classic; 404 "Branch not protected" is none
 ```
 
 | State | Route |
 | --- | --- |
 | `main` requires no pull request, and you hold the tree | the default above |
-| `main` requires no pull request, and another session holds the tree (step 1) | `git push origin <branch>:main`, behind the same `<sha>` check |
+| `main` requires no pull request, and another session holds the tree (step 1) | `git push origin <branch>:<default>`, behind the same `<sha>` check |
 | `main` requires no pull request, and the branch is in a linked worktree (step 1) | that push, or the main checkout's route: [references/linked-worktree.md](references/linked-worktree.md) |
 | `main` requires a pull request — **whether or not you could bypass it** | `gh pr merge <n> -R <owner>/<repo> --merge --match-head-commit <sha> --subject … --body …`, with `--admin` only where a rule stays unmet, on the user's yes for that PR, step 6 naming what it skips ([`--admin`](references/integration-routes.md#--admin-a-merge-past-an-unmet-rule)) |
 | `main` also requires linear history | stop — every route inside the gate rewrites SHAs; name which, then wait |
@@ -343,9 +343,9 @@ Through the same tool step 2 confirmed — **both routes verify, and the
   are `gh`'s (confirmed against `gh pr view --json`, 2026-09-16).
 - **`get_check_runs` can refuse a token that opened the PR** (step 2):
   the `github-mcp` route's caveat: `gh pr checks <n>` then reads CI.
-- Read the check conclusions rather than the summary. A review bot (for
-  example `copilot-pull-request-reviewer`) is **not** a gate; a
-  `pre-commit` style job is.
+- Read the check conclusions rather than the summary. A review bot,
+  such as `copilot-pull-request-reviewer`, is **not** a gate, Claude
+  Code Review's result being step 6's; a `pre-commit` style job is.
 - **`gh pr checks` exits non-zero by design** — exit code 8 is *checks
   pending*, a failure is likewise non-zero, and a repo with **no CI at
   all** exits **1**, printing `no checks reported on the '<branch>'
@@ -367,17 +367,17 @@ Through the same tool step 2 confirmed — **both routes verify, and the
 
   ```bash
   git fetch origin
-  git merge-base --is-ancestor <sha> origin/main          # exit 0: the pinned head landed as-is
-  git log --merges --oneline <base>..origin/main | wc -l   # the branch's own merges, +1 for a merge commit
+  git merge-base --is-ancestor <sha> origin/<default>          # exit 0: the pinned head landed as-is
+  git log --merges --oneline <base>..origin/<default> | wc -l   # the branch's own merges, +1 for a merge commit
   ```
 
   A failed ancestor check is a squash or rebase merge, which no count
   sees; a higher count is `main` moving under the PR merge, and step 7's
   subject names yours ([measured](references/integration-routes.md#verifying-what-landed)).
-- `main` and `origin/main` at one SHA: `git rev-parse main origin/main`
-  prints two identical lines, after `git fetch origin main:main` wherever
-  HEAD is off `main`, since a plain fetch moves `origin/main` alone.
-  Never `--short`, which fails exit 128; the reference has both.
+- `main` and `origin/main` at one SHA: `git rev-parse <default>
+  origin/<default>` prints two identical lines, after `git fetch origin
+  <default>:<default>` with HEAD off `main`, since a plain fetch moves
+  `origin/main` alone. Never `--short`, exit 128; the reference has both.
 
 Report the PR number, the merged state, and the CI conclusions. If CI is
 still running, say so rather than implying it passed.
@@ -392,7 +392,7 @@ call, disclosed at step 6 instead of gated here, in a shared repo too
 
 ```bash
 # Local — move off <branch> first if HEAD is on it; alone by a ListAgents run now
-[[ "$(git branch --show-current)" == "<branch>" ]] && git switch main
+[[ "$(git branch --show-current)" == "<branch>" ]] && git switch <default>
 git merge-base --is-ancestor <branch> <sha> && git branch -D <branch>   # keyed on <sha>, step 7's pin
 
 # Remote — probe, don't infer. GitHub may have done it already.

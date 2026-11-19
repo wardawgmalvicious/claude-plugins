@@ -1,6 +1,7 @@
 # Integration routes
 
-Everything behind step 7's routing table: why the default is the
+Everything behind step 7's routing table, `main` naming step 1's
+`<default>` as in `SKILL.md`: why the default is the
 default, how to read what `main` requires and why a refusal cannot tell
 you, the `gh api` settings read with its `null` caveat, the refspec
 mechanics of the no-checkout route and its two silent traps, what it
@@ -31,7 +32,7 @@ the user corrected it.
   pressing it that preserves the split.
 - **A merge commit** — adds a commit to a history that may never have
   had one, and collapses nothing: every SHA survives. `git log --merges
-  --oneline origin/main | wc -l` from step 1 says what the history has
+  --oneline origin/<default> | wc -l` from step 1 says what the history has
   done so far, not what the repo wants: a `0` may mean only that no
   multi-change branch has landed yet, so it never outweighs a written
   convention.
@@ -90,6 +91,16 @@ find which side moved — `git log <sha>..<branch>` for the local branch,
 (2026-11-02). `expectedHeadSha` has been exercised once, in the pass
 direction (2026-09-22); its refusal is API-documented and not exercised.
 
+**A 5xx from the merge call is no failed merge**: a `gh pr merge` by
+the pull request row answered HTTP 502, exit non-zero, and the pull
+request had merged, its subject and body intact (observed 2026-11-18,
+gh 2.104.0, once, in a client repo). Read its state before anything
+else, and merge again only while it reads `OPEN`:
+
+```bash
+gh pr view <n> -R <owner>/<repo> --json state,mergeCommit,mergedAt
+```
+
 ## Why the PR route is not the async merge API
 
 **The route stays on `gh pr merge`, which GitHub no longer recommends and
@@ -130,7 +141,7 @@ GitHub's docs (read 2026-11-02):
 
 **Nothing here reads a stack directly**: `gh pr view --json stack` answers
 `Unknown JSON field: "stack"`, and no listed field names one (gh 2.103.3,
-2026-11-02). A `baseRefName` other than `main` hints at a pull request
+2026-11-02). A `baseRefName` other than `<default>` hints at a pull request
 above the bottom, and a bottom one reads like any other. What
 `gh pr merge` prints on a stacked pull request is unmeasured.
 
@@ -161,7 +172,7 @@ route**; the branch's own is usually `0`:
 
 ```bash
 git log --merges --oneline <base>..<sha> | wc -l   # the branch's own
-git log --merges --format=%s <base>..origin/main   # each merge that landed, by subject
+git log --merges --format=%s <base>..origin/<default>   # each merge that landed, by subject
 ```
 
 **Only the ancestor check sees a squash or a rebase merge**: each
@@ -176,8 +187,9 @@ merge in.
 **Local `main` is a separate check.** A plain fetch moves `origin/main`
 alone, and with no fetch at all the PR merge passed
 `git rev-parse main origin/main` on two stale lines (2026-09-23);
-`git fetch origin main:main` moves both, and is refused where `main` is
-checked out ([linked-worktree.md](linked-worktree.md)). `--short` takes
+`git fetch origin <default>:<default>` moves both, and is refused where
+`main` is checked out ([linked-worktree.md](linked-worktree.md)).
+`--short` takes
 exactly one revision and fails `fatal: Needed a single revision`, exit
 128 — run twice in one landing before the error was read rather than
 retried (2026-09-22; reproduced 2026-09-23, git 2.55).
@@ -213,8 +225,8 @@ GitHub documents its `protected` filter as "branch protections or
 rulesets":
 
 ```bash
-gh api repos/<owner>/<repo>/rules/branches/main --jq '[.[].type]'
-gh api repos/<owner>/<repo>/branches/main/protection --jq '.required_pull_request_reviews != null'
+gh api repos/<owner>/<repo>/rules/branches/<default> --jq '[.[].type]'
+gh api repos/<owner>/<repo>/branches/<default>/protection --jq '.required_pull_request_reviews != null'
 ```
 
 The first returns every **active** rule on `main` from rulesets at any
@@ -306,12 +318,12 @@ request**, the write is the PR's own merge, server-side, whoever holds
 the tree. Only the first line differs:
 
 ```bash
-[[ "$(git rev-parse <branch>)" == "<sha>" ]] && git push origin <branch>:main   # the write — ff-enforced
-# main requires a PR? line 1 is instead:
+[[ "$(git rev-parse <branch>)" == "<sha>" ]] && git push origin <branch>:<default>   # the write — ff-enforced
+# <default> requires a PR? line 1 is instead:
 #   gh pr merge <n> -R <owner>/<repo> --merge --match-head-commit <sha> --subject … --body …
 git fetch origin --quiet
-git fetch origin main:main      # moves the local main REF; HEAD untouched
-git merge-base --is-ancestor <branch> main
+git fetch origin <default>:<default>   # moves the local <default> REF; HEAD untouched
+git merge-base --is-ancestor <branch> <default>
 ```
 
 From a linked worktree the `EnterWorktree` guard refuses that first line
@@ -386,7 +398,7 @@ mechanism turns the cheap one into ceremony — says it was right to.
 **Squash has a second cost whenever someone branched from your tip**,
 and that one is not about your history. Preserving the SHAs —
 `--ff-only` or a merge commit, either — leaves their base reachable
-from `main`, so `git log main..<their-branch>` comes back empty and
+from `main`, so `git log <default>..<their-branch>` comes back empty and
 their branch sits on `main` with nothing to rebase. A squash writes a
 new SHA, leaving your commits unreachable from `main`: their branch
 carries them as duplicates and their next PR re-proposes your whole

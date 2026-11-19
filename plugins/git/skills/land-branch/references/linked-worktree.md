@@ -51,7 +51,7 @@ run from the worktree unchanged, and step 6 names the tree step 7 writes
 from.
 
 A worktree created on its branch needs no rename:
-`git worktree add .claude/worktrees/<dir> -b <type>/<kebab-slug> main`,
+`git worktree add .claude/worktrees/<dir> -b <type>/<kebab-slug> <default>`,
 then `EnterWorktree` with `path` set to that directory, which its
 description offers for "one you just created with `git worktree add`"
 (2.1.294, 2026-10-08). The directory and the branch may be named apart.
@@ -73,8 +73,8 @@ complex to verify that it stays inside the worktree, as it does
 `commit-changes`'s chain (2.1.294, 2026-10-08).
 
 ```bash
-git rev-parse <branch>                    # must print <sha>; stop if not
-git push origin <sha>:refs/heads/main     # pushes exactly <sha>
+git rev-parse <branch>                         # must print <sha>; stop if not
+git push origin <sha>:refs/heads/<default>     # pushes exactly <sha>
 ```
 
 What was checked is what goes, even if the branch moves after the read;
@@ -90,7 +90,7 @@ before it catches up diverges, so step 8's report names the fix, to run
 in the main checkout:
 
 ```bash
-git merge --ff-only origin/main
+git merge --ff-only origin/<default>
 ```
 
 For a landed hook or settings change the catch-up is more than tidying.
@@ -112,8 +112,8 @@ shared. HEAD there is already `main`, so the default route drops its
 switch, and its guard checks for `main`:
 
 ```bash
-[[ "$(git branch --show-current)" == "main" && "$(git rev-parse <branch>)" == "<sha>" ]] \
-  && git merge --ff-only <branch> && git push origin main
+[[ "$(git branch --show-current)" == "<default>" && "$(git rev-parse <branch>)" == "<sha>" ]] \
+  && git merge --ff-only <branch> && git push origin <default>
 ```
 
 Without that ask, take the worktree's route above, or hand the user this
@@ -123,10 +123,11 @@ command to run there.
 
 Step 8's ancestor check and merge count read `origin/main` against the
 pins, so they run from the worktree unchanged. Its local-`main` line
-does not: `git fetch origin main:main` is refused wherever another tree
-has `main` checked out, `fatal: refusing to fetch into branch
+does not: `git fetch origin <default>:<default>` is refused wherever
+another tree has it checked out, `fatal: refusing to fetch into branch
 'refs/heads/main' checked out at '<path>'`, exit 128, and moves no ref
-(again 2026-09-29). Skip that line and `git rev-parse main origin/main`;
+(again 2026-09-29). Skip that line and `git rev-parse <default>
+origin/<default>`;
 step 7's catch-up in the main checkout brings its `main` current.
 
 ## Step 9: the worktree goes before the branch
@@ -164,12 +165,39 @@ used by worktree at '<path>'` (2026-09-29).
   (§ "Detecting one"). The removal and the keyed `git branch -D` above
   then run as written (twice, 2.1.311, 2026-10-26).
 
-  **A removal that exits 255 leaves the folder held**: git has dropped
-  the worktree's entry and the files up to the held one, but a child
-  this session started there can hold the folder as long as the session
-  lives: a language server, by its ancestry and start time, unconfirmed
-  by `handle` (2026-11-05). Run the keyed `git branch -D`, and hand the
-  user `rmdir <worktree>` for once the session has ended, or
+  **A removal that exits 255 leaves the folder held**: git drops the
+  worktree's entry and admin folder anyway, but deletes files only up
+  to the first one it cannot, which stays with every entry after it
+  (`lead-sessions`' `landing-gate.md`, Git 2.56.0, 2026-11-04). A
+  native process working in the folder itself fails only the folder,
+  `error: failed to delete '<worktree>': Permission denied`, and leaves
+  it empty, holding it until it exits, as a `ping` started there did
+  (git 2.55.0, 2026-11-18); one in a subfolder, `Permission denied` on
+  that subfolder, or with a file open there, `Invalid argument`, leaves
+  files.
+  This session is no holder once it has left: `EnterWorktree` moves its
+  `claude.exe` into the worktree and `ExitWorktree` moves it back,
+  measured after a `remove`, where a `claude --worktree` session's own
+  process worked in its worktree (2.1.327, 2026-11-18). Reads of a
+  `.py` and a `.ps1` file there started no holder, so 2026-11-05's
+  language server, inferred from ancestry and start time, is still a
+  guess. One hold ended within the session, `rmdir` passing 2 h 41 min
+  after the failure, past another worktree's entry and exit and six
+  compactions (observed 2026-11-18, 2.1.325). **Name the holder by its
+  working directory**, from the main checkout, since the scan lists its
+  own shell too. Unelevated, `handle` printed
+  `No matching handles found.` for the `ping`, which the scan listed
+  (2026-11-18). It finds only a working-directory holder, and an empty
+  result clears nothing: an open-file holder needs `landing-gate.md`'s
+  elevated `handle` line. The scan:
+
+  ```bash
+  uv run --no-project --with psutil python -I -c "import os,sys,psutil; r=os.path.normcase(os.path.abspath(sys.argv[1])); [print(p.info) for p in psutil.process_iter(['pid','name','ppid','cwd']) if p.info['cwd'] and (os.path.normcase(p.info['cwd'])+os.sep).startswith(r+os.sep)]" '<worktree>'
+  ```
+
+  Run the keyed `git branch -D`, retry
+  `rmdir <worktree>` later in the session, and if it still fails hand
+  the user `rmdir <worktree>` for once the session has ended, or
   `Remove-Item -Recurse <worktree>` if that says it is not empty: only a
   later `work-issue` or `lead-sessions` preflight sweeps an empty one,
   and a repo landing by this skill alone runs neither.
@@ -190,6 +218,29 @@ used by worktree at '<path>'` (2026-09-29).
   user saw no such offer, more than once (their report, 2026-10-16,
   unmeasured).
 - **`ExitWorktree` `remove` is no substitute.** It refuses while the
-  branch holds commits not on the original one, and after `git branch -m`
-  it removed the worktree and left the renamed branch, saying nothing of
-  it (2.1.282, 2026-09-29).
+  branch holds commits past the session's starting commit, counted by
+  `git rev-list --count refs/heads/<branch> ^<start>`, which asks no
+  remote, and reads a branch `git branch -m` renamed as "another
+  branch", as § "Clean up worktrees" says of the exit prompt
+  (code.claude.com/docs/en/worktrees, read 2026-11-18): it refused on
+  13 commits already on the remote (2.1.325), and after a rename,
+  `The worktree is now on another branch, which has 1 commit that this session's starting commit lacks`
+  (2.1.327, both 2026-11-18). After the rename it removed the worktree
+  and left the renamed branch, saying nothing of it (2.1.282,
+  2026-09-29; again 2.1.327, 2026-11-18).
+  **It deletes the worktree itself, never by `git worktree remove`**:
+  after `git worktree unlock`, with no git process seen, it deletes
+  every entry but the `.git` file, then git's admin folder, then the
+  folder with its `.git` file. **Under a hold, its
+  `could not remove it — kept at` leaves no worktree**: the last step
+  fails whole, though `rm <worktree>/.git` alone passed under the same
+  hold, so the folder keeps a lone `.git` file naming the deleted admin
+  folder, the entry is gone and the branch kept. `git status` there prints
+  `fatal: not a git repository: (NULL)`, `git worktree remove` says
+  `is not a working tree`, and no preflight sweep takes a folder that
+  is not empty. Under the same hold, `keep` then `git worktree remove`
+  names its failure and leaves the empty folder a sweep takes, so it
+  still wins (each reproduced 2026-11-18, 2.1.327, a `ping` working in
+  the folder, under `discard_changes: true`; first seen that day on
+  2.1.325). Clear the leftover by the keyed `git branch -D`,
+  `rm <worktree>/.git`, and `rmdir <worktree>` once the holder exits.

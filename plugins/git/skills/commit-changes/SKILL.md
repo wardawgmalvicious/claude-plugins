@@ -228,8 +228,10 @@ hunk out of a file they are also writing:
 
 Before the first commit in a repo containing `*.{ItemType}` folders:
 check `git config core.autocrlf` and whether `.gitattributes` pins the
-item folders (per the `fabric-git-serialization.md` rule, where the
-user's config holds one).
+item folders with `<workspace-folder>/** -text`. The portal writes some
+lines CRLF and some LF in one file, so with translation on and no pin,
+each local commit strips CRs the next portal sync puts back;
+`text eol=lf` restarts that from the other side.
 Whitespace-only diffs (EOF newline, CR-stripping) in portal-owned files are
 translation artifacts — do not commit them as "cleanup"; flag them and
 fix the `.gitattributes` instead.
