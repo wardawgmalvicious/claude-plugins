@@ -128,28 +128,37 @@ title goes only with the repo.
 ## `claude-plugins`, read before its flip
 
 **`wardawgmalvicious/claude-plugins` is the public marketplace's repo,
-kept private until its first export is validated and scanned**. Read
-2026-11-17 at `5f22d00`, an empty marketplace, as
-`wardawgmalvicious`; rerun both before the switch, since the export
-adds the history the scan reads.
+made public on 2026-11-17 once its first export was validated and
+scanned**. Read
+2026-11-17 at `8907587`, after the first release's export merged, as
+`wardawgmalvicious`; the same day at `5f22d00`, an empty marketplace,
+both gave the same counts.
 
-- **`going-public.ps1`: 0 `[HIT]`, 1 `[WARN]`**, 4 workflow runs whose
-  logs the switch makes readable.
+- **`going-public.ps1`: 0 `[HIT]`, 1 `[WARN]`**, 6 workflow runs whose
+  logs the switch makes readable, each CI's validate and pre-commit
+  output over the history the scan read.
 - **`audit-repo.ps1 -Policy org-published -AsPublic`: 1 `[FAIL]`, 3
-  `[WARN]`.**
+  `[WARN]`**, before `sha_pinning_required` went on below.
   - `[FAIL]` no pull request rule requires a code owner review. The
     owner is its only code owner, and an author cannot approve their
     own pull request, so the rule would leave every merge to the admin
     bypass; turn it on only once a second maintainer is named in
     `CODEOWNERS`.
-  - `[WARN]` `sha_pinning_required` is off. The workflow pins by tag
-    through `.github/workflows/actions.lock`, as this repo's does, so
-    turn it on from the Actions settings page before the switch, as
-    this repo has: it then blocks only a workflow the lockfile does not
-    onboard.
+  - `[WARN]` `sha_pinning_required` was off. The workflow pins by tag
+    through `.github/workflows/actions.lock`, as this repo's does, and
+    with it turned on, by `PUT actions/permissions`, a rerun of CI
+    passed both jobs (2026-11-17): it blocks only a workflow the
+    lockfile does not onboard.
   - `[WARN]` the repository admin role bypasses the pull request
     ruleset, fine while one person maintains it.
   - `[WARN]` no social preview uploaded: GitHub takes an upload from a
     public repo, or from a private one that has held one before, which
     this has not, so upload `docs/social/social-preview.png` there right
     after the switch.
+- **Secret scanning and push protection, which the `-AsPublic` run
+  above never named**: right after the switch the same audit without
+  `-AsPublic` warned `secret_scanning is disabled` and
+  `secret_scanning_push_protection is disabled`, since GitHub turns
+  neither on at the switch, and both were turned on then, by
+  `PATCH repos/<repo>` with `security_and_analysis` (2026-11-17). An
+  `-AsPublic` run now warns of each on a private repo.

@@ -51,9 +51,9 @@ folder; do not read a glob or fixture for it as evidence the portal name
 is ever used for a folder.
 
 **Both files are JSON parts, so canonical form is LF with no final
-newline.** `claude/rules/fabric-git-serialization.md` co-loads on these
-same paths and owns that policy — follow it there rather than restating
-it. Observed on a real item: LF-only, no trailing newline, both files.
+newline.** Preserve each file's end exactly. Observed on a real item:
+LF-only, no trailing newline, both files. The rest of the portal's
+serialization: `data-items`, `references/git-serialization.md`.
 
 **An Activator created but never configured serializes as `[]`.** Two
 bytes. That is not an error and not an empty object — it is the empty
@@ -370,7 +370,8 @@ Every code, grouped by stage, with cause and fix, is in
   `references/cli.md`
 - `deploy` — deploys, from a Git checkout or through deployment
   pipelines
-- `claude/rules/fabric-git-serialization.md` — co-loads on these paths
+- `data-items`, `references/git-serialization.md` — end of file, line
+  endings and what a portal commit deletes
 - [eventstream.md](../eventstream/eventstream.md) and
   [eventhouse.md](../eventhouse/eventhouse.md) — the two items an
   Activator most often reads from

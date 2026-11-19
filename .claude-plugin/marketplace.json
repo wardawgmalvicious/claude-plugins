@@ -82,6 +82,11 @@
       ]
     },
     {
+      "name": "toolchain",
+      "source": "./plugins/toolchain",
+      "category": "development"
+    },
+    {
       "name": "bash-lsp",
       "source": "./plugins/bash-lsp",
       "category": "development"

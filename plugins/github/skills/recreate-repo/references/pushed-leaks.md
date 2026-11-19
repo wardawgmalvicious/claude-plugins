@@ -86,12 +86,12 @@ gh acts as '<login>', not the repo owner '<owner>'. Refusing to snapshot a repo 
 ## The script, from a sibling skill's folder
 
 Since 2026-10-24 the script ships in `audit-repo`, and `SKILL.md` names
-it `${CLAUDE_SKILL_DIR}/../audit-repo/scripts/repo-settings.ps1`. Both
-skills are in the github-admin group, and `link-claude.ps1` and
-`copy-skills.ps1` each deploy a group whole, never one skill of it, so
-the sibling folder is there wherever this one is: the user's skills
-folder at user scope, a client repo's `.claude/skills/` in a copy. A
-user-scope spelling of `audit-repo/` would miss the second, though
+it `${CLAUDE_SKILL_DIR}/../audit-repo/scripts/repo-settings.ps1`. This
+skill never deploys without that folder's scripts, the whole skill or
+its scripts alone, and `export-skills.ps1` refuses a
+`${CLAUDE_SKILL_DIR}/../<sibling>/` path the catalog plugin would not
+hold, so the sibling folder is there wherever this one is: the user's
+skills folder at user scope, the plugin's `skills/` in a client repo. A user-scope spelling of `audit-repo/` would miss the second, though
 there step 1 stops on an organization's repo before step 2 names the
 script. Until then it named `${CLAUDE_SKILL_DIR}/scripts/repo-settings.ps1`,
 which Claude Code expands before the model reads the skill. Probed

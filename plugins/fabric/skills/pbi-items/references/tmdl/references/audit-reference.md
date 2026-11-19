@@ -24,7 +24,7 @@ executeQueries, **N** = Fabric notebook (`sempy.fabric`).
 | 8 | `DateTime` key columns | D | relationship on a `dateTime` column | Strip the time part in Power Query — **not** the Modeling tab |
 | 9 | Disconnected table | D | table in no relationship | **Verify before flagging** — legitimate for what-if parameters |
 | 10 | Assume referential integrity | D | `referentialIntegrity` on a DirectQuery relationship | Only with genuine integrity; otherwise results silently understate |
-| 11 | Missing `formatString` / `summarizeBy` | D | column and measure properties | Set explicitly, by the user's `coding-tmdl.md` rule where their config holds one, else by [tmdl.md](../tmdl.md) |
+| 11 | Missing `formatString` / `summarizeBy` | D | column and measure properties | Set explicitly, by [tmdl.md](../tmdl.md) |
 | 12 | Implicit measures | D | numeric columns with `summarizeBy` other than `none` and no explicit measure | Create explicit measures; set `summarizeBy: none` |
 | 13 | Non-descriptive names | D | `TR_AMT`, `F_SLS`, `DIM_GEO_01` | Rename, or supply `description` and synonyms. At scale, `powerbi-modeling-mcp` renames in bulk — review before saving (see `audit.md` §7) |
 | 14 | Missing descriptions | D/Q | tables, columns, measures | Add concise descriptions — required for AI consumers |

@@ -3,9 +3,8 @@
 Covers the **Git-serialized** form of a DataPipeline item — the JSON an
 agent edits when there is no portal to validate against.
 
-**Not here, deliberately:** expression syntax (`@concat`, `coalesce`,
-the ForEach variable race) belongs to the `coding-expressions` rule,
-which globs the same file and always co-loads. Connection rebinding
+**Not here, deliberately:** the expression language and its idioms
+(`@concat`, `coalesce`, the ForEach variable race). Connection rebinding
 across environments belongs to `deploy`. The `libraryVariables`
 block's own mechanics belong to `variable-library`. Copy activity
 source/sink/dataset internals are not covered at all.
@@ -31,8 +30,9 @@ The three files (`pipeline-content.json` required; `.platform` and
 `.schedules` optional) are tabled in
 [references/data-pipeline-api.md](references/data-pipeline-api.md).
 
-Serialization mechanics (EOF newlines, CRLF/LF, `.gitattributes`) are in
-the `fabric-git-serialization` rule, which globs this folder too.
+Serialization mechanics are
+[git-serialization.md](../git-serialization.md)'s: `pipeline-content.json`
+ends at its last character, with no final newline.
 
 ## 2. The definition envelope
 
@@ -316,7 +316,7 @@ portal writes it ([references/REFERENCE.md](references/REFERENCE.md)).
 
 ## 8. CI/CD limitations specific to pipelines
 
-Parameterisation and `parameter.yml` are `deploy`'s. These three
+Parameterisation and `parameter.yml` are `deploy`'s. These four
 are pipeline-shaped and bite after promotion:
 
 - **A promoted pipeline that invokes a dataflow still points at the
@@ -328,6 +328,28 @@ are pipeline-shaped and bite after promotion:
 - **Teams and Outlook activities need a manual sign-in per activity** in
   each target workspace — OAuth connections do not deploy.
 - **Workspace variables are unsupported by CI/CD.**
+- **A pipeline's activities run as its last modifier**, so a publish by
+  a service principal makes every later run that principal's. A
+  notebook a pipeline runs "runs under the identity of the pipeline's
+  last modified user"
+  (Learn, *How to use Microsoft Fabric notebooks*, read 2026-11-18), and
+  a `PATCH` of name or description makes a principal that user
+  (Learn, *Set a service principal as a pipeline owner*, read 2026-11-18).
+  A fabric-cicd publish did, and a run started by hand then went through
+  as the deploy principal (observed 2026-11-18, fabric-cicd 1.4.0).
+  Grant it what the runs need: User on each connection an activity
+  binds directly; User on the Fabric Azure Key Vault reference behind a
+  connection whose secret it holds, whose lack failed an Invoke Pipeline
+  activity `DMTS_UserIsNotAllowedToAccessAzureKeyVaultConnectionErrorCode`
+  with User on the connection already (observed 2026-11-18), Learn
+  documenting no roles on a reference, though its ⋯ menu offered User;
+  and, for code reading secrets as the run identity, such as
+  `notebookutils.credentials.getSecret`, a data role on the vault itself
+  (inferred, not seen failing). Which identity a scheduled run
+  takes is unmeasured: Learn gives a scheduled notebook its schedule's
+  creator or last updater, and a publish without `.schedules` keeps the
+  schedule's owner (`deploy`'s `references/fabric-cicd.md`, *Item-type
+  caveats*).
 
 ## 9. Limits
 

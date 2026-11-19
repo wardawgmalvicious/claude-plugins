@@ -69,6 +69,10 @@ Near these items, and not them:
   [data-pipeline-mcp.md](references/data-pipeline/references/data-pipeline-mcp.md).
   The Warehouse's remote server is
   [warehouse-mcp.md](references/warehouse/references/warehouse-mcp.md).
+- **Every item's Git folder is the portal's serialization**: each
+  part's end of file, what a portal commit deletes, and the mixed line
+  endings a `.gitattributes` must leave alone are
+  [git-serialization.md](references/git-serialization.md)'s.
 
 ## 3. Read the item's reference first
 

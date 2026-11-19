@@ -104,9 +104,8 @@ question.
   whole branch is reviewed where it lands: by `land-branch` before its
   PR, or before the landing the repo's own instructions name. **A
   branch a lead will land is reviewed before its hand-off**, never left
-  to the lead: by the prep in `work-issue`'s
-  `references/prep.md` § "Preparing to land", where `work-issue` is
-  installed. When the
+  to the lead: by `work-issue`'s prep, where that skill is installed.
+  When the
   staged diff touches a language `review-code`'s description names,
   **Markdown aside**, invoke
   `review-code` with `git diff --cached` and those paths as its target,
@@ -228,8 +227,10 @@ hunk out of a file they are also writing:
 
 Before the first commit in a repo containing `*.{ItemType}` folders:
 check `git config core.autocrlf` and whether `.gitattributes` pins the
-item folders (per the `fabric-git-serialization.md` rule, where the
-user's config holds one).
+item folders with `<workspace-folder>/** -text`. The portal writes some
+lines CRLF and some LF in one file, so with translation on and no pin,
+each local commit strips CRs the next portal sync puts back;
+`text eol=lf` restarts that from the other side.
 Whitespace-only diffs (EOF newline, CR-stripping) in portal-owned files are
 translation artifacts — do not commit them as "cleanup"; flag them and
 fix the `.gitattributes` instead.

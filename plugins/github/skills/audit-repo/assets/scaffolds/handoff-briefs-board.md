@@ -19,8 +19,9 @@ uv run --no-project "${HANDOFF_STATUS_PY:-${CLAUDE_CONFIG_DIR:-$HOME/.claude}/sk
 | `parent` | optional: the issue number it is a sub-issue of, bare |
 | `reopen-when` | the trigger, Reopen-when; required when `deferred` |
 | `written` | `YYYY-MM-DD`; the queue reads the issue's creation date |
-| `work-model` | optional: `haiku`, `sonnet`, `opus` or `fable`, Work model |
-| `work-effort` | optional: `low`, `medium`, `high`, `xhigh` or `max`, Work effort |
+| `work-model` | `haiku`, `sonnet`, `opus` or `fable`, Work model; required, by `file-issue`'s table, bar a tracking parent |
+| `work-effort` | `low`, `medium`, `high`, `xhigh` or `max`, Work effort; required, by `file-issue`'s table, bar a tracking parent |
+| `tracking` | `true` on a tracking parent alone, which no session works whole: it takes neither `work-` key, and sets no field |
 | `platform` | optional list, each lowercase kebab, as `power-bi`: its `platform:*` label, made at filing where the repo lacks it |
 
 Each is `key: value` or `key: [a, b]`; YAML misreads a value opening with
@@ -35,9 +36,9 @@ so an issue is `62`, never `#62`.
   make for them. A decision lands as yes, no or defer; a defer sets the
   card Deferred with its Reopen-when, and the issue stays open.
 - **A brief's worktree lands from the main checkout, with no push**:
-  rebase its branch on `main`, lint what it changed with
-  `pre-commit run --from-ref main --to-ref HEAD` in the worktree,
-  `git merge --ff-only` the branch from the main checkout,
+  rebase its branch on the default branch, `<default>`, lint what it
+  changed with `pre-commit run --from-ref <default> --to-ref HEAD` in
+  the worktree, `git merge --ff-only` the branch from the main checkout,
   then remove the worktree and delete its branch. The user pushes.
   `lead-sessions` lands by this line, and stops in a repo that has none.
 - **Landing closes the issue**: the commit that finishes its work says

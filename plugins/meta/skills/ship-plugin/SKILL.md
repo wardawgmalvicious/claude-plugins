@@ -4,7 +4,7 @@ model: inherit  # inert anyway: a paths: skill has no cold slash route
 effort: xhigh
 disable-model-invocation: false
 description: "Ships a Claude Code plugin so it installs and runs where its users are. A plugin gets no build step, so a .mcp.json pointing at a gitignored dist/ installs cleanly and its server never starts; chat, Cowork and Claude Code each load a different part of a plugin, and a top-level bin/ makes chat, Cowork and org sync refuse it; version means something different for a local-path marketplace, one added by source and one synced to a claude.ai organization; a synced marketplace is labelled with its repository's owner/repo and nothing renames it, and Delete source removes every plugin for every member. Ends with an install test in a throwaway CLAUDE_CONFIG_DIR (claude plugin validate, install --config, claude mcp list) and claude plugin eval for the plugin's own skills. Not for a mod, which plugin-authoring makes."
-when_to_use: "Use when writing or changing a plugin.json or marketplace.json, turning an MCP server or a set of skills into a plugin, releasing or versioning one, syncing a marketplace to a claude.ai organization, or when a plugin's server never connects or shows no tools, an update changes nothing, or chat ignores part of a plugin."
+when_to_use: "Use when writing or changing a plugin.json or marketplace.json, turning an MCP server or a set of skills into a plugin, making one depend on another plugin, releasing or versioning one, syncing a marketplace to a claude.ai organization, or when a plugin's server never connects or shows no tools, an update changes nothing, a plugin stays disabled over a dependency, or chat ignores part of a plugin."
 paths:
   - "**/.claude-plugin/*.json"
 ---
@@ -167,6 +167,38 @@ Then, whatever the way:
   (Claude Code `CHANGELOG.md` 2.1.325, read 2026-11-15).
 - **Git LFS files arrive as pointer files.** No clone fetches LFS.
 
+**A plugin can depend on another**: a `dependencies` array in
+`plugin.json`, or in the marketplace entry for a plugin with none
+(plugins/dependencies, read 2026-11-18).
+
+- **A bare name resolves only in the declaring plugin's own
+  marketplace**, so the dependency ships in every marketplace that ships
+  a dependent. One from another marketplace is named, `<dep>@<marketplace>`
+  or the object's `marketplace`, and the root marketplace lists that
+  marketplace in `allowCrossMarketplaceDependenciesOn`. Without that, and
+  unless the user already has the dependency enabled at the same scope,
+  an entry's dependency refuses the install, `... which is not in the
+  allowlist`, while a `plugin.json` one installs without it and the
+  plugin fails to load (plugins/dependencies, read 2026-11-18).
+- **Name the marketplace in a plugin users may turn on from claude.ai**,
+  `{ "name": "<dep>", "marketplace": "<marketplace>" }`, even its own: a
+  synced copy loads as `<name>@synced`, with no marketplace, and counts
+  only an entry naming one as met, by the dependency from that
+  marketplace or a claude.ai plugin of its name (plugins/dependencies,
+  read 2026-11-18). Tell those users to turn the dependency on there too.
+- **Adding a dependency to an installed plugin disables it** at the
+  next load, `Dependency "<dep>" is not installed`, until each user
+  installs the dependency; a fresh install brings it,
+  `(+ 1 dependency: <dep>)` (plugins/troubleshooting, read 2026-11-18)
+  (observed 2026-11-18, 2.1.327). Uninstalling the dependent leaves it
+  for `claude plugin prune` (plugins/install, read 2026-11-18).
+- **A tool a dependency's `SessionStart` hook fetches**, way 3 above,
+  reaches the Bash tool by a `PATH` line in `CLAUDE_ENV_FILE`. On
+  Windows the PowerShell tool gets no value holding `/` or `\`, and no
+  variable at all once any line reads `$PATH` (hooks, read 2026-11-18).
+  Other plugins' hooks did not see that `PATH` (observed 2026-11-18, 2.1.327),
+  so a dependent's hook looks in `${CLAUDE_PLUGIN_DATA}/../<dep>-*/bin/`.
+
 ## 3. Check each component against each surface
 
 A surface skips what it does not load, so a plugin can look complete in
@@ -188,6 +220,9 @@ Claude Code and partial in chat. The rules that bite:
   scripts folder and call `${CLAUDE_PLUGIN_ROOT}/scripts/<name>`.
 - **Agents and hooks** load in Cowork and Claude Code, not chat; LSP
   servers, output styles and themes load in Claude Code only.
+- **A dependency that works by a hook does nothing in chat**, so a
+  dependent's skill there finds only the sandbox's tools (an inference
+  from the line above).
 - **A plugin's `settings`**, a root `settings.json` or the manifest's
   `settings` key, loads in Claude Code only, and only its `agent` key
   still works: 2.1.323 deprecated it, warning at startup, in `claude
@@ -233,8 +268,8 @@ Windows author's own run misses:
   sandbox, which has `/mnt/user-data` where Git Bash has no `/mnt`, so
   pasted elsewhere it reports nothing as the sandbox's:
   `( test -d /mnt/user-data || { echo "not claude.ai's sandbox"; exit 1; }; echo "claude.ai's sandbox" )`.
-  The user's `coding-bash.md` rule, where their config holds one, has
-  the measurement; with none, this line is the whole of it.
+  The user's Bash coding rule, where their config holds one, has the
+  measurement; with none, this line is the whole of it.
 
 A Linux container built to the probe's values stands in locally, but a
 pass there is not a pass in chat, which still decides a release. Beyond
@@ -255,6 +290,13 @@ Choose per release line, after step 1's route:
 - **Never set it in both files.** `plugin.json` wins without warning at
   load, and `claude plugin validate` reports `Entry declares version
   "<a>" but <path>/plugin.json says "<b>"`.
+- **A dependent's `version` range resolves only against
+  `<name>--v<version>` tags** on the dependency's source repository,
+  the marketplace's for a relative path, so a plugin that omits
+  `version` can be depended on but not constrained. A relative-path
+  dependency with no tag in range installs the current copy, and the
+  dependent stays disabled, `Requires "<dep>" <range>, installed
+  <version>` (plugins/dependencies, read 2026-11-18).
 
 What follows from the choice:
 
@@ -284,6 +326,14 @@ be undone. Check with the user, before they open **Sync from GitHub**:
   `./`.** A bare name under `metadata.pluginRoot` is rejected as an
   unsupported source: write `./plugins/<name>`.
 - **No plugin has a top-level `bin/`** (step 3).
+- **Each dependency entry names its marketplace** (step 2), and the
+  dependency is synced too: a claude.ai plugin meets a dependency only
+  when the dependent also loads from claude.ai, and a marketplace
+  dependent reads it `is not installed` until the dependency is
+  installed from its marketplace (plugins/dependencies and
+  plugins/troubleshooting, read 2026-11-18). Whether turning a plugin on
+  turns its dependency on, no page says (claude.com org-sync, read
+  2026-11-18).
 - **The marketplace's label is its repository's `<owner>/<repo>`, and
   nothing changes it.** The dialog's "Marketplace name" field is a
   read-only echo of the repository picked above it, the Marketplaces
@@ -336,6 +386,11 @@ CLAUDE_CONFIG_DIR=<scratch>/config claude plugin details <plugin>@<marketplace>
 - **Pass `--config` for every required option.** The shell install never
   prompts for `userConfig`, and prints `userConfig options not yet set`
   when one is missing.
+- **A plugin with `dependencies`**: the install prints
+  `(+ 1 dependency: <dep>)`, and `claude plugin list` shows no
+  `Dependency "<dep>" is not installed`. To develop the two together,
+  load both: `claude --plugin-dir <dep> --plugin-dir <plugin>`
+  (plugins/dependencies, read 2026-11-18).
 - **Run `claude mcp list` from the scratch directory**, outside the repo,
   so a project `.mcp.json` cannot answer for the plugin's server, which
   is listed as `plugin:<plugin>:<server>`.

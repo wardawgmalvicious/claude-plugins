@@ -100,7 +100,8 @@ From a clone of the repo:
 ```
 
 The script ships in the `audit-repo` skill's folder, beside this one
-wherever the github-admin group deploys, since a deploy takes a group whole;
+wherever this skill is installed, since this skill never ships without
+that folder's scripts;
 from Bash, run the same path through `pwsh -NoProfile -File`. `-Repo`
 defaults to the clone's origin.
 

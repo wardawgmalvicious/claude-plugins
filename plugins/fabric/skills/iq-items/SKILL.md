@@ -47,7 +47,7 @@ agents side by side. Near these items, and not them:
   § Data source constraints). Model the ontology in ontology.md, and
   configure each agent in its own file.
 - **An ontology can generate a graph**: a child `GraphModel`, made only
-  on opt-in through *Manage graph*, and only from eligible entity types
+  on opt-in, and only from eligible entity types
   ([ontology.md](references/ontology.md), its opening and § The
   constraints that produce silent or confusing failures). GQL itself is
   [graph.md](references/graph.md)'s.

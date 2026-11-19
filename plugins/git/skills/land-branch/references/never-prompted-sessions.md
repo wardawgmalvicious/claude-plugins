@@ -192,7 +192,7 @@ rows it passed at step 1, by the path step 1 of `SKILL.md` names it by:
 bash <placed-elsewhere.sh> <name> \
   && bash <never-prompted.sh> <name> \
   && [[ "$(git branch --show-current)" == "<branch>" && "$(git rev-parse <branch>)" == "<sha>" ]] \
-  && git switch main && git merge --ff-only <branch> && git push origin main
+  && git switch <default> && git merge --ff-only <branch> && git push origin <default>
 ```
 
 Leave out a script that passed no row: given no name, it prints its

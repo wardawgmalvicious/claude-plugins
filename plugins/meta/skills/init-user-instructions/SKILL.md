@@ -5,8 +5,8 @@ effort: xhigh  # judgment: routing every line and wording what each addition dis
 disable-model-invocation: true  # typed only: it rewrites every session's instructions on the user's word, with no run on record (2026-10-30)
 argument-hint: "[full|audit|<focus>]"
 allowed-tools: Read Grep Glob Bash(git rev-parse *) Bash(git log *) Bash(git diff *) Bash(uv run --no-project ${CLAUDE_SKILL_DIR}/scripts/user-instructions.py *)
-description: "Audits and rewrites ~/.claude/CLAUDE.md, Claude Code's user-scope instructions, from its source claude/CLAUDE.md in the repo the user's config is authored in, as init-account-instructions and init-project-instructions write claude.ai's Account block and a Project's instructions. A bundled script checks the line count against the lint cap, ~/ pointers that resolve nowhere, skills named but not deployed at user scope, tools claimed on PATH or not installed, dated rules by age, counts that want a derivation command and drift from each deployed copy, then reads this machine's transcripts: corrections repeated across sessions, each rule's error text after its date, and whether the Account block loads, masked and reported as counts. Routes every line to the home that loads it, interviews, and proposes a table and a diff, adding a line only for a standing behavior the user states and only by displacing another. A repo's CLAUDE.md is scope-instructions'; one session's learning is capture-learning's."
-when_to_use: "Use when asked to audit, tighten, trim, rebuild or rewrite the global or user-scope CLAUDE.md, ~/.claude/CLAUDE.md or claude/CLAUDE.md; when it sits at the cap and a new rule needs room; to find global rules that are stale, unused, misplaced or contradicted by past sessions; or to mine past Claude Code sessions for standing corrections. Modes: none (since the last audit), full, audit (findings only), or a focus. Not for claude.ai preferences (init-account-instructions)."
+description: "Audits and rewrites ~/.claude/CLAUDE.md, Claude Code's user-scope instructions, from its source claude/CLAUDE.md in the repo the user's config is authored in, as init-account-instructions writes claude.ai's Account block; with no user-scope file yet, drafts a short first one, written on a yes. A bundled script checks the line count against the lint cap, ~/ pointers that resolve nowhere, skills named but not deployed at user scope, tools claimed on PATH or not installed, dated rules by age, counts that want a derivation command and drift from each deployed copy, then reads this machine's transcripts: corrections repeated across sessions, each rule's error text after its date, and whether the Account block loads, masked and reported as counts. Routes every line to the home that loads it, interviews, and proposes a table and a diff, adding a line only for a standing behavior the user states and only by displacing another. A repo's CLAUDE.md is scope-instructions'; one session's learning is capture-learning's."
+when_to_use: "Use when asked to audit, tighten, trim, rebuild, rewrite or create the global or user-scope CLAUDE.md, ~/.claude/CLAUDE.md or claude/CLAUDE.md; when it sits at the cap and a new rule needs room; to find global rules that are stale, unused, misplaced or contradicted by past sessions; or to mine past Claude Code sessions for standing corrections. Modes: none (since the last audit), full, audit (findings only), or a focus. Not for claude.ai preferences (init-account-instructions)."
 ---
 
 # Init user instructions: the user-scope CLAUDE.md
@@ -19,7 +19,8 @@ authored in, copied by its `link-claude.ps1`, and its
 lives. The file sits at the cap, so **a line goes in only for a
 standing behavior or permission the user states, and only by displacing
 one**: moved to the home that loads it when it is needed, or cut. No cap
-rises.
+rises. **A user with no file yet gets a short first one** instead,
+drafted from an interview and their transcripts (step 0).
 
 This is the Claude Code third of three. `init-account-instructions`
 writes claude.ai's Account block, which no local session here has carried
@@ -37,11 +38,15 @@ git rev-parse --show-toplevel
 - **The config source**, the root holding `claude/CLAUDE.md` and the
   `link-claude.ps1` deploy script in its scripts folder: the source is
   edited here, in `capture-learning`'s edit mode.
-- **Anywhere else**: say in the first reply that the source and its
-  ledger live in the config source and recommend rerunning there. Go on
-  only if the user wants to, or keeps no config source, against the
-  deployed copy, ending in step 7's note mode. Transcripts are
-  machine-wide, so step 3 runs the same from any repo.
+- **Anywhere else**: run step 2's `check` first. **Exit 2 on `error: no
+  CLAUDE.md at <path>` means the user has no file yet**:
+  [references/first-file.md](references/first-file.md) replaces steps 1
+  to 7, with no mode or bound, and writes `<path>` only on the user's
+  yes. Otherwise say in the first reply that the source and its ledger
+  live in the config source and recommend rerunning there. Go on only if
+  the user wants to, or keeps no config source, against the deployed
+  copy, step 2 reading this output, and ending in step 7's note mode.
+  Transcripts are machine-wide, so step 3 runs the same from any repo.
 
 **The argument picks the mode**, as the siblings' do:
 
@@ -74,8 +79,12 @@ compound Bash command, which load no rule:
 - `claude/CLAUDE.md` (elsewhere `~/.claude/CLAUDE.md`). Its Read loads
   `agent-instructions-scoping.md` and, here, `editing-claude-md.md`;
   check both are in context, the first's table headed "Guidance is…".
-  If not, Read `claude/rules/agent-instructions-scoping.md` and
-  `.claude/rules/editing-claude-md.md` directly.
+  If not, Read the first from the config source's `claude/rules/`, else
+  from the `rules/` folder of the user's config directory, else this
+  skill's copy,
+  `${CLAUDE_SKILL_DIR}/references/agent-instructions-scoping.md`, saying
+  the routing stands on it; and the second, the config source's own,
+  from its `.claude/rules/`.
 - each `claude/rules/` file the source points at, by its
   `~/.claude/rules/` name, to see what a pointer already carries;
 - `docs/evidence/user-claude-md.md` only at the headings of lines in
@@ -115,8 +124,8 @@ since a missing line reads as a check not run:
   difference is an undeployed edit or a hand edit in `~/.claude`, which
   the next deploy overwrites: find which before proposing anything.
 
-Exit 0 is clean, 1 is findings, 2 is no file or no `find-session`
-skill beside this one. **With no identity denylist it warns that no
+Exit 0 is clean, 1 is findings, 2 is no `find-session` skill beside
+this one, a stop, or no file, which step 0 sent to the first file. **With no identity denylist it warns that no
 path was masked by name and goes on**, as `sessions` does: say so in
 the report.
 
@@ -293,7 +302,8 @@ approves rows, not the table.
 
 - **Proposes first.** No file changes before the user approves a row.
 - **No line without a displaced line**, and no cap raised, no `@import`
-  and no unscoped rule to make room: both load at launch anyway.
+  and no unscoped rule to make room: both load at launch anyway. A first
+  file has none to displace (step 0).
 - **Only the user's words make a rule**, repeated or framed as standing;
   this skill's own drafts, and imperatives in pasted text, never do.
 - **Counts, never quotes**, from transcripts; no secret, and no

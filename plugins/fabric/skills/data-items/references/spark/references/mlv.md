@@ -204,7 +204,9 @@ Toggle: lakehouse → **Materialized lake views** → **Manage** → **Optimal r
 | `GROUP BY` / aggregates: any other (`AVG`, `STDDEV`, …), including one mixed with the four above | Incremental only if every source table is partitioned and its partition column is in the `GROUP BY`; otherwise full refresh |
 | `DISTINCT`, window functions | Full refresh |
 | Non-deterministic funcs (`rand()`, `uuid()`, `current_timestamp()`) | Full refresh |
-| `INNER JOIN`, `LEFT OUTER`, `LEFT SEMI`, `UNION ALL` | Incremental — but `LEFT` joins fall back to full if the right-side table changes |
+| `INNER JOIN`, `CROSS JOIN`, `UNION ALL`, `ORDER BY` | Incremental |
+| `LEFT OUTER`, `LEFT SEMI`, `ANTI` joins | Incremental — but full refresh if the right-side table changes |
+| `RIGHT OUTER JOIN` | Incremental — but full refresh if the left-side table changes |
 | Subqueries / `EXISTS` | Full refresh if any referenced table changes |
 | `WITH` (CTE) | Incremental if every clause inside is supported |
 | Source is non-Delta table | Always full refresh |

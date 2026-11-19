@@ -298,6 +298,7 @@ target holds, and a service principal deploying.
 | `AttributeError: 'str' object has no attribute 'value'` on ItemReference | Pure-Python kernel returns dict-like — `.get("itemId")` is already the GUID; only call `.value()` when it exists |
 | Lookup fails under SPN / scheduled run | `notebookutils.variableLibrary` has no SPN support — pass values as notebook parameters from the pipeline |
 | A schedule bound to a variable hasn't switched after its value changed through Git | It switches at its next read of the variable, which `enabledDetail.nextResolveVariableReferenceDateTime` gives; see *Schedule consumption* |
+| Publishing or updating the library fails `InvalidValueOrTypeMismatch` / `ReferencedEntityNotFoundOrAccessDenied` | Every update checks that the caller can Read each connection and item the **active** value set references, defaults it does not override included (Learn, *Variable library permissions*, read 2026-11-18). Before a service principal's first publish, grant it **User** on each such connection by Add Connection Role Assignment, which takes UserWithReshare or Owner (Learn, read 2026-11-18). On an OAuth connection that lends its items the sign-in it holds: say so first. Nine grants cleared a fabric-cicd publish (observed 2026-11-18, 1.4.0) |
 
 ## Reference
 

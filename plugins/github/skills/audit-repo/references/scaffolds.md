@@ -180,8 +180,13 @@ On a yes, in this order:
    the merge method the repo's settings allow:
 
    ```markdown
-   - **A brief's worktree lands by pull request**: the session runs `pre-commit run --from-ref origin/main --to-ref HEAD`, pushes its branch and opens a pull request saying `Closes #<n>`, by `land-branch`'s account checks, and stops short of the merge, which a reviewer makes by <merge method>. The worktree stays until that merge. `work-issue` and `lead-sessions` land by this line, and `lead-sessions` parks what the branch blocks until then.
+   - **A brief's worktree lands by pull request**: the session runs `pre-commit run --from-ref origin/<default> --to-ref HEAD`, pushes its branch and opens a pull request saying `Closes #<n>`, by `land-branch`'s account checks, and stops short of the merge, which a reviewer makes by <merge method>. The worktree stays until that merge. `work-issue` and `lead-sessions` land by this line, and `lead-sessions` parks what the branch blocks until then.
    ```
+
+   **`<default>` stays as written in either bullet**, where `<merge
+   method>` is filled: `work-issue`'s preflight reads the default branch
+   on each run, so the line holds through a change of default, as from
+   `main` to `dev`.
 
    Neither skill has run this route yet, so say that in the finding.
    **Either bullet keeps its bold opening as written**, `worktree lands

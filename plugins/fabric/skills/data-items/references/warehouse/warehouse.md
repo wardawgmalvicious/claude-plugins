@@ -156,8 +156,8 @@ mandatory `DBCC CHECKIDENT(..., RESEED)`):
   Fabric treats that folder as the serialization of the live warehouse,
   so a script the warehouse does not contain is drift to be deleted —
   13 of them (~3,300 lines) left a trunk in a single portal commit.
-  Keep them outside anything Fabric syncs. See the
-  `fabric-git-serialization` rule.
+  Keep them outside anything Fabric syncs. The rest of what a portal
+  commit deletes: [git-serialization.md](../git-serialization.md).
 - **Keep transactions short** to shrink the conflict window. Error 24556 / 24706
   = snapshot conflict → serialize and retry with exponential backoff.
 - **Ingestion**: `COPY INTO` for external files (highest throughput), `OPENROWSET`
@@ -241,8 +241,9 @@ Choosing it at create, by REST, is
 [references/warehouse-api.md](references/warehouse-api.md) § "Creating one".
 
 Because it is case-sensitive, **write built-in type names lowercase in
-item definitions** — `sysname`, never `SYSNAME`. See `coding-tsql` —
-*Casing*.
+item definitions** — `sysname`, never `SYSNAME`. The uppercase form
+resolves as a missing user-defined type and fails the whole DacFx build:
+`rest-api`'s `references/gotchas.md`, the `SQL71501` row.
 
 ## Pipeline Integration
 

@@ -19,11 +19,13 @@ git remote -v      # prints nothing
 git fetch origin   # fatal: 'origin' does not appear to be a git repository; exit 128
 ```
 
-Step 1's other reads of `origin/main` fail too, and `git rev-parse
-origin/main` prints its argument to stdout before exiting 128, so a
-captured `<base>` reads `origin/main` instead of coming back empty (git
-2.55.0.windows.3, 2026-10-17). Hold step 1's `origin` reads until the
-base is pushed (§ "Push the base, then resume").
+Step 1's other reads of `origin` fail too, `git ls-remote` among them,
+and `git rev-parse origin/main` prints its argument to stdout before
+exiting 128, so a captured `<base>` reads `origin/main` instead of
+coming back empty (git 2.55.0.windows.3, 2026-10-17). Hold step 1's
+`origin` reads until the base is pushed (§ "Push the base, then
+resume"); until then `<default>` is the local branch that push sends,
+`main` here.
 
 With no ask to publish, there is nothing to land: say so, and name this
 route.
@@ -112,14 +114,14 @@ git, under the folder's identity, where step 3 keeps its usual control.
 ## Push the base, then resume
 
 ```bash
-git push -u origin main
+git push -u origin <default>
 ```
 
-Then run step 1's `origin` reads, now that `origin/main` exists,
-`<base>` and the merge count among them, and land resumes at step 3,
-which pushes the branch. The base goes first because a PR needs its base
-on the remote: reasoned, not tested, since base-first never met the
-failure.
+Then run step 1's `origin` reads, now that `origin/<default>` exists,
+`git ls-remote`, `<base>` and the merge count among them, and land
+resumes at step 3, which pushes the branch. The base goes first because
+a PR needs its base on the remote: reasoned, not tested, since
+base-first never met the failure.
 
 ## A new repository starts unprotected
 

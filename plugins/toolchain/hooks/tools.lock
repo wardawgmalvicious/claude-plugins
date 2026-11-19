@@ -1,0 +1,18 @@
+# The releases toolchain.sh fetches, one row per tool and platform:
+#   tool version platform url sha256
+# platform is <os>-<arch> as toolchain.sh names them. Each sha256 is the
+# release's own published sum (jq: sha256sum.txt; uv: sha256.sum), read
+# 2026-11-18. Bump a tool's rows together, version, URLs and sums, and
+# never to a release younger than two weeks.
+jq 1.8.2 linux-x86_64 https://github.com/jqlang/jq/releases/download/jq-1.8.2/jq-linux-amd64 b1c22172dd303f3be49e935aa56aa48a8b7a46e0bc838b4997d3bb451495870f
+jq 1.8.2 linux-aarch64 https://github.com/jqlang/jq/releases/download/jq-1.8.2/jq-linux-arm64 8b85c817833814ddca00a144c33705546355afccf0cf39b188f3cdb48b852309
+jq 1.8.2 macos-x86_64 https://github.com/jqlang/jq/releases/download/jq-1.8.2/jq-macos-amd64 e94b266e3c26690550006abe63152b782280f4e14374accdf04cbde844f00bc0
+jq 1.8.2 macos-aarch64 https://github.com/jqlang/jq/releases/download/jq-1.8.2/jq-macos-arm64 2d75340ba57a4b4b4c8708a21c2dc8e958a48aaa8bba13b27f77f6e4c0eca07e
+jq 1.8.2 windows-x86_64 https://github.com/jqlang/jq/releases/download/jq-1.8.2/jq-windows-amd64.exe a6fc67fedaf9128a3309a1e2ebb8b986aeccf70122ee46d2cb4849e423f0c627
+jq 1.8.2 windows-aarch64 https://github.com/jqlang/jq/releases/download/jq-1.8.2/jq-windows-arm64.exe 083b5377392bc57cf27052b6d20a2d927770683bca844632901ff38b4b7b0ac7
+uv 0.13.7 linux-x86_64 https://github.com/astral-sh/uv/releases/download/0.13.7/uv-x86_64-unknown-linux-musl.tar.gz 287491da03f2a785c70fa75b13e1f849918c2f2b5415fe84876b8214eeb792f9
+uv 0.13.7 linux-aarch64 https://github.com/astral-sh/uv/releases/download/0.13.7/uv-aarch64-unknown-linux-musl.tar.gz 2d3ec076a0c4c0e8250bb6418c44080828b544f1a3be0b6e46adf9fb6923de45
+uv 0.13.7 macos-x86_64 https://github.com/astral-sh/uv/releases/download/0.13.7/uv-x86_64-apple-darwin.tar.gz 20c47e4c1f630b8abaff8c291fa9b9aa300fef92c4fbff95adf198b55287cda7
+uv 0.13.7 macos-aarch64 https://github.com/astral-sh/uv/releases/download/0.13.7/uv-aarch64-apple-darwin.tar.gz 81b811b57e4624df7ed3aac148e0359100d9962f3d9dce00aec533dc2e086731
+uv 0.13.7 windows-x86_64 https://github.com/astral-sh/uv/releases/download/0.13.7/uv-x86_64-pc-windows-msvc.zip 0cdc5b38fe5a8168ed6a25814f5ba43c21d313dd3187314fccb37b7cec46e021
+uv 0.13.7 windows-aarch64 https://github.com/astral-sh/uv/releases/download/0.13.7/uv-aarch64-pc-windows-msvc.zip 505d9e65e7692bac3ddf98c66754aa26c5050c409c184af30a881a0a72cc85e3

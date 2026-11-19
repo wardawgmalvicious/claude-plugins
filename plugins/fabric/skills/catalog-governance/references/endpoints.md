@@ -1,8 +1,9 @@
 # Governance endpoints, by tier
 
 Every row was drilled from Microsoft Learn on 2026-09-11, bar the
-policy-set rows (2026-11-02) and the admin Get Item and List Item Access
-Details rows (2026-11-05), and **none was
+policy-set rows (2026-11-02), the admin Get Item and List Item Access
+Details rows (2026-11-05) and the List, Create and Update Domain rows
+(2026-11-18), and **none was
 called against a tenant**. Where Learn is silent, the row says so rather
 than filling the gap.
 
@@ -19,7 +20,7 @@ for any `/v1/admin/*` route.
 | List Item Access Details | `GET /v1/admin/workspaces/{ws}/items/{id}/users` | `Tenant.Read.All` or `Tenant.ReadWrite.All` | Yes | **Preview.** 200/hour, **one item per call**. `type` as Get Item, and the same dataflow caveat. `accessDetails[]`: a `principal` (`User`, `Group`, `ServicePrincipal`, `ServicePrincipalProfile`, `EntireTenant`) and its `itemAccessDetails`, `permissions` (`Read`, `Write`, `Reshare`, `Explore`, `Execute`) and workload `additionalPermissions` (`ReadAll`, `viewOutput`). Learn's summary says it lists "workspace roles", but its schema returns item permissions; whether access that comes from a workspace role is listed is undocumented |
 | List Workspaces | `GET /v1/admin/workspaces` | `Tenant.Read.All` | Yes | 200/hour, 10,000 per page. Filters `type`, `state`. Returns `capacityId`; `domainId` present only when assigned |
 | List Workspace Access Details | `GET /v1/admin/workspaces/{id}/users` | `Tenant.Read.All` | Yes | **Preview** |
-| List Domains | `GET /v1/admin/domains?preview=false` | `Tenant.Read.All` | Yes | 25/minute. `preview=false` is required. Domain object: `id`, `displayName`, `description`, `parentDomainId`, `defaultLabelId` — unset fields are omitted, not null |
+| List Domains | `GET /v1/admin/domains` | `Tenant.Read.All` | Yes | 25/minute. Optional `nonEmptyOnly`, `withAssignedWorkspacesOnly`; no `preview` parameter (below). Domain object: `id`, `displayName`, `description`, `parentDomainId`, `defaultLabelId` — an unset `defaultLabelId` is omitted, a `description` reads `""` or is omitted in Learn's samples, and a root domain's `parentDomainId` reads `null` |
 | List Domain Workspaces | `GET /v1/admin/domains/{id}/workspaces` | `Tenant.Read.All` | Yes | Response schema not drilled. **The only way to list a domain's workspaces** — there is no Core equivalent |
 | List Role Assignments | `GET /v1/admin/domains/{id}/roleAssignments` | `Tenant.Read.All` | Yes | Role is `Admin` or `Contributor`; principal may be `User`, `Group`, `ServicePrincipal`, `ServicePrincipalProfile` or `EntireTenant` |
 | List Tenant Settings | `GET /v1/admin/tenantsettings` | `Tenant.Read.All` | Yes | 25/minute |
@@ -48,8 +49,8 @@ All require the Fabric administrator role and `Tenant.ReadWrite.All`.
 
 | Operation | Method and path | SPN / MI | Limits, behaviour, failure |
 | --- | --- | --- | --- |
-| Create Domain | `POST /v1/admin/domains?preview=false` | Yes | 25/min. `displayName` ≤ 40 chars, `description` ≤ 256. `EntityConflict` if the name exists tenant-wide, `EntityNotFound` for a bad `parentDomainId` |
-| Update Domain | `PATCH /v1/admin/domains/{id}?preview=false` | Yes | 25/min. Body accepts only `displayName`, `description`, `defaultLabelId` — no branding, image or default-domain fields |
+| Create Domain | `POST /v1/admin/domains` | Yes | 25/min. `displayName` ≤ 40 chars, `description` ≤ 256. `EntityConflict` if the name exists tenant-wide, `EntityNotFound` for a parent domain that does not exist, `InvalidInput` for an invalid `parentDomainId` |
+| Update Domain | `PATCH /v1/admin/domains/{id}` | Yes | 25/min. Body accepts only `displayName`, `description`, `defaultLabelId` — no branding, image or default-domain fields |
 | Delete Domain | `DELETE /v1/admin/domains/{id}` | Yes | 25/min. No `preview` parameter. Errors are only `DomainNotFound` and `UnknownError`: **no cascade block, and Learn does not document what happens to subdomains or assigned workspaces** |
 | Assign workspaces by IDs | `POST /v1/admin/domains/{id}/assignWorkspaces` | Yes | **10/min.** Synchronous 200. Body `workspacesIds`. "Preexisting domain assignments will be overridden unless bulk reassignment is blocked by domain management tenant settings" |
 | Assign by capacities / by principals | `POST .../assignWorkspacesByCapacities` / `...ByPrincipals` | Yes | 10/min. **202 + long-running operation** — poll `Location`, never report the 202 as done |
@@ -74,10 +75,13 @@ and `security` both carried `/v1/admin/labels/…` until
 2026-09-12; a vendored copy of either predating that date still has it
 wrong.
 
-Create Domain's non-preview form is documented as "a release version of
-a preview version due to be deprecated on March 31, 2026", yet
-`preview=false` was still required on 2026-09-11. Expect this to change
-and re-check.
+**No Domains route takes a `preview` parameter.** Create, Get, List and
+Update Domain lost their preview versions in November 2026: a request
+without the parameter has reached the GA version since August, and one
+that still asks for the preview version fails (Fabric November 2026
+Feature Summary, read 2026-11-18). None of the four Learn pages lists
+the parameter (Learn, read 2026-11-18). Whether `preview=false` is now
+rejected or ignored is documented nowhere, so send none.
 
 ## Data-owner tier — Core API
 

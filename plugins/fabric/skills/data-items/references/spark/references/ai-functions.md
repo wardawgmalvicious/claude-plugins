@@ -199,4 +199,4 @@ Same capability, different engines — not covered in depth here:
 - `iq-items` — Data Agents: governed NL-to-data over semantic models/lakehouses (different tool, different job)
 - [warehouse.md](../../warehouse/warehouse.md) — the T-SQL `ai_*` scalar functions
 - [monitoring-links.md](../../warehouse/references/monitoring-links.md) — Capacity Metrics app links
-- `coding-python` rule — conventions for the pandas/PySpark you'll write around these calls
+- The pandas and PySpark you write around these calls: [spark.md](../spark.md) for the Fabric surface; general Python style is not covered here

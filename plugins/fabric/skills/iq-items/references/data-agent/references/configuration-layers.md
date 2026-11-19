@@ -83,8 +83,10 @@ round after its fix:
   columns, so a breakdown returned every calendar month and every item
   ever ordered, and the answers read an empty month at $0 as the lowest.
   The preview runtime's DAX made them measures guarded by
-  `IF(NOT ISBLANK(…))` and kept no empty row. The DAX fix, `IGNORE`, is
-  in the `coding-dax` rule, *Anti-patterns*.
+  `IF(NOT ISBLANK(…))` and kept no empty row. The DAX fix wraps each
+  helper column in `IGNORE`, which leaves it out of the blank-row test:
+  `"Month Start", IGNORE ( MIN ( 'Date'[Date] ) )` (Learn's
+  SUMMARIZECOLUMNS and IGNORE pages, read 2026-10-15).
 - **On the preview runtime, no instruction removes the result-file
   line** that ends an answer:
   [data-agent-mcp.md § What an answer carries](data-agent-mcp.md#what-an-answer-carries).

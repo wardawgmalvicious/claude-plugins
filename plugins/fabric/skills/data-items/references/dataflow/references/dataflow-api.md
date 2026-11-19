@@ -13,7 +13,7 @@ and nothing is measured.
 | Git folder | `<display name>.Dataflow/` |
 | Learn definition | [Dataflow definition](https://learn.microsoft.com/rest/api/fabric/articles/item-management/definitions/dataflow-definition) |
 | Spec folder | [`dataflow/`](https://github.com/microsoft/fabric-rest-api-specs/tree/main/dataflow): `swagger.json`, `definitions.json`, `examples/` |
-| Spec read | `6f817cb`, 2026-11-07: 15 operations |
+| Spec read | `ec85f05`, 2026-11-18: 15 operations |
 
 ## Definition
 
@@ -28,10 +28,9 @@ here). Three part kinds:
 | `<name>.mdf` | no | A Mapping Data Flow transform; there can be several |
 | `.platform` | no | Item metadata: `displayName`, `logicalId`; see § "`updateDefinition` replaces everything" |
 
-Serialization mechanics (EOF newlines, CRLF/LF, `.gitattributes`) are in
-the `fabric-git-serialization` rule, which globs the folder too. M style
-conventions are the `coding-m` rule's, which globs `mashup.pq`. Neither is
-restated here.
+Serialization mechanics (end of file, CRLF/LF, `.gitattributes`) are
+[git-serialization.md](../../git-serialization.md)'s. M style
+conventions, such as naming and step layout, are not covered here.
 
 A bound dataflow cannot be authored from Learn's examples alone, for the
 reason in § "The composite `connectionId`".
@@ -216,7 +215,8 @@ table is `spec-ops.py`'s, at the SHA above, with *On
 Learn* and *Measured* filled in; each operation's `examples/` file holds a
 request and its response. Learn lists the parameters in its *Items*
 group, the runs and schedules in *Background Jobs*, the upgrade calls in
-*Upgrade* and the query in *Query Execution* (all read 2026-10-20).
+*Upgrade* and the query in *Query Execution* (all read 2026-10-20,
+*Upgrade* again 2026-11-18).
 Nothing is measured: no live tenant was used.
 
 | Method | Path tail | Does | Body | Flags | On Learn | Measured |
@@ -226,8 +226,8 @@ Nothing is measured: no live tenant was used.
 | `POST` | `jobs/applyChanges/schedules` | Create a new apply changes schedule for a dataflow. A dataflow can create maximum 20 schedulers | `enabled`, `configuration`, `executionData` | | yes | no |
 | `POST` | `jobs/execute/instances` | Run on-demand execute job instance | `executionData` | LRO | yes | no |
 | `POST` | `jobs/applyChanges/instances` | Run on-demand apply changes job instance | | LRO | yes | no |
-| `GET` | `/workspaces/{workspaceId}/dataflows/gen1UpgradeReadinessResults` | Lists Gen1 dataflow upgrade readiness results in the specified workspace | | preview | yes | no |
-| `POST` | `/workspaces/{workspaceId}/dataflows/gen1Upgrade` | Upgrades Gen1 dataflows in the specified workspace | `dataflows` | LRO, preview | yes | no |
+| `GET` | `/workspaces/{workspaceId}/dataflows/gen1UpgradeReadinessResults` | Lists Gen1 dataflow upgrade readiness results in the specified workspace | | | yes | no |
+| `POST` | `/workspaces/{workspaceId}/dataflows/gen1Upgrade` | Upgrades Gen1 dataflows in the specified workspace | `dataflows` | LRO | yes | no |
 | `POST` | `executeQuery` | Executes a query against a dataflow and returns the result | `queryName`, `customMashupDocument` | LRO | yes | no |
 
 What the spec adds to the table (`swagger.json`, read 2026-10-20):
@@ -251,9 +251,10 @@ What the spec adds to the table (`swagger.json`, read 2026-10-20):
   takes 1 to 50 dataflows of that workspace** in a request body of at
   most 13 KiB (13,312 bytes, whitespace included), needs ownership of
   each or the admin role, evaluates each independently so a batch can
-  partly succeed, and cannot be cancelled. Both are preview and can answer
-  `FeatureNotAvailable`. The wizard's rules, and the Power BI `saveAs`
-  call, are in [REFERENCE.md](REFERENCE.md) § 7.
+  partly succeed, and cannot be cancelled. Neither is preview since the
+  spec at `ec85f05`, but both can still answer `FeatureNotAvailable`, the
+  operation not enabled for the caller's tenant. The wizard's rules, and
+  the Power BI `saveAs` call, are in [REFERENCE.md](REFERENCE.md) § 7.
 
 ### Permissions by operation
 

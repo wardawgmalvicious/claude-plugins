@@ -45,8 +45,9 @@
 # suffix and tool would have spawned nothing for those edits, at 50 handlers
 # kept in step with the table below by hand; one table here was chosen.
 #
-# FAILS OPEN. Input jq cannot read, or no jq, exits 1: the edit proceeds
-# under a `hook error` notice saying it was not checked. A Bash write to an
+# FAILS OPEN. Input jq cannot read, or no jq on PATH or in the toolchain
+# plugin's data folder, exits 1: the edit proceeds under a `hook error`
+# notice saying it was not checked. A Bash write to an
 # item file runs no Edit|Write hook (a probe saw a `cat` read a model that
 # way, 2026-11-13).
 #
@@ -108,12 +109,28 @@ unchecked() {
 # rejects the syntax and exits 1.
 jq_input() {
     local rc=0
-    printf '%s\n' "$INPUT" | timeout 5 jq -r "$@" 2>/dev/null || rc=$?
+    printf '%s\n' "$INPUT" | timeout 5 "$JQ" -r "$@" 2>/dev/null || rc=$?
     [[ $rc -eq 1 || $rc -eq 126 || $rc -eq 127 ]] || return "$rc"
-    printf '%s\n' "$INPUT" | jq -r "$@" 2>/dev/null
+    printf '%s\n' "$INPUT" | "$JQ" -r "$@" 2>/dev/null
 }
 
-command -v jq >/dev/null 2>&1 || unchecked "jq is not on PATH"
+# jq off PATH: the toolchain plugin, which this plugin depends on, fetches
+# one into its own data folder, a sibling of this one, and the PATH it adds
+# reaches the Bash tool and no plugin's hook (toolchain.sh's header). A
+# C:/ path globs as it is, and is run by its full path, never put on PATH,
+# whose colon would split it.
+JQ=jq
+if ! command -v jq >/dev/null 2>&1; then
+    JQ=
+    DATA=${CLAUDE_PLUGIN_DATA:-}
+    DATA=${DATA//\\//}
+    if [[ -n $DATA ]]; then
+        for candidate in "${DATA%/}"/../toolchain-*/bin/jq.exe "${DATA%/}"/../toolchain-*/bin/jq; do
+            [[ -x $candidate ]] && JQ=$candidate && break
+        done
+    fi
+    [[ -n $JQ ]] || unchecked "jq is not on PATH, nor in the toolchain plugin's data folder"
+fi
 # Joined on the unit separator, not a tab: IFS collapses runs of whitespace,
 # so a main session's empty agent_id would shift transcript_path into it.
 FIELDS=$(jq_input '[.tool_input.file_path // "", .session_id // "",

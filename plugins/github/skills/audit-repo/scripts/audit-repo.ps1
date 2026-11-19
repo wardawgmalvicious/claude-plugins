@@ -60,7 +60,8 @@
     and the server's sha_pinning_required off; secret scanning or push
     protection off, where GitHub returns security_and_analysis at all,
     which it did not for a private personal repo (2026-10-30); a deploy
-    key that can write; a bypass actor on any active ruleset, not only
+    key that can write; an environment with no deployment branch policy,
+    which any branch can deploy to; a bypass actor on any active ruleset, not only
     the default branch's, its reason naming the force push and deletion
     an always or exempt bypass passes where the ruleset holds those rules
     too; a code-owner rule that keeps an approval
@@ -133,7 +134,8 @@
     installed, or the secret set, is not read.
 
     WHAT IT DOES NOT AUDIT: classic branch protection (reported, not
-    read), push rulesets' rules, environments, secrets, Dependabot and
+    read), push rulesets' rules, an environment's reviewers, variables
+    and branch patterns, secrets, Dependabot and
     code scanning, composite actions' own uses: lines, a uses: in YAML
     flow style, and organization-level defaults, which it reads only as
     the repo sees them. The uses: scan reads lines, not YAML, so a line
@@ -157,7 +159,10 @@
     Reads still follow the live visibility, so the pull request cap,
     which a private repo cannot answer, stays unread, and secret
     scanning's fix still names the spend a private organization repo
-    pays. What the switch exposes is going-public.ps1's, beside this one.
+    pays. Where a private repo returns no security_and_analysis block,
+    each secret-scanning key warns to be turned on after the switch,
+    since GitHub turns neither on then. What the switch exposes is
+    going-public.ps1's, beside this one.
 
     THE ACCOUNT IS -Login, PINNED HERE, where the caller names one: its
     token is minted by gh auth token --user, whatever GH_TOKEN held, and
@@ -415,8 +420,9 @@ $isPublic = $isPublicNow -or $AsPublic
 Step "$Repo -- policy $Policy -- read as $actingAs"
 Info "owner type $ownerType; visibility $($repoJson['visibility']); default branch $defaultBranch"
 if ($AsPublic -and -not $isPublicNow) {
-    Info ('judged as public, as -AsPublic asks; what GitHub offers a public repo alone, ' +
-        'secret scanning and the pull request cap, reads once the switch is made')
+    Info ('judged as public, as -AsPublic asks; what GitHub offers a public repo alone ' +
+        'reads once the switch is made: secret scanning warns where unread, ' +
+        'the pull request cap is unread')
 }
 if (-not $isAdmin) {
     Warn "$actingAs has no admin rights on $Repo" `
@@ -467,17 +473,27 @@ if ($Policy -eq 'releases') {
 # The repo's own read carries the block. GitHub left it out for a private
 # repo of a personal account, where the plan offers no secret scanning,
 # and returned it with every status on a public one (2026-10-30), so an
-# absent block is context and only a disabled status warns.
+# absent block is context and only a disabled status warns. Under
+# -AsPublic an absent block warns per key instead: GitHub turns neither on
+# at the switch, so claude-plugins read both disabled right after its flip,
+# and an [INFO] put neither in the checklist the owner works through
+# (2026-11-17).
 Step 'Secret scanning'
 $analysis = Get-Key $repoJson 'security_and_analysis'
-if ($analysis -isnot [System.Collections.IDictionary]) {
+$scanning = [ordered]@{
+    'secret_scanning'                 = 'a secret pushed from a clone without the pre-commit hooks reaches the remote unseen'
+    'secret_scanning_push_protection' = 'a push carrying a secret is accepted, and found, if at all, only after it is public to every reader'
+}
+if ($analysis -isnot [System.Collections.IDictionary] -and $AsPublic -and -not $isPublicNow) {
+    foreach ($key in $scanning.Keys) {
+        Warn "$key unread while the repo is private: turn it on once the repo is public" `
+            -Why "$($scanning[$key]); GitHub turns neither key on at the switch" `
+            -Fix "after the switch, $patch -f 'security_and_analysis[$key][status]=enabled'"
+    }
+} elseif ($analysis -isnot [System.Collections.IDictionary]) {
     Info ("security_and_analysis not returned to ${actingAs}: the plan offers no secret scanning " +
         'here, or the account cannot read it')
 } else {
-    $scanning = [ordered]@{
-        'secret_scanning'                 = 'a secret pushed from a clone without the pre-commit hooks reaches the remote unseen'
-        'secret_scanning_push_protection' = 'a push carrying a secret is accepted, and found, if at all, only after it is public to every reader'
-    }
     foreach ($key in $scanning.Keys) {
         $status = Get-Key (Get-Key $analysis $key) 'status'
         if ($status -eq 'enabled') {
@@ -1220,6 +1236,49 @@ if (-not $isAdmin) {
                     -Why 'it pushes as no person, past any rule a DeployKey bypass waives' `
                     -Fix "$settingsUrl/keys -- where nothing pushes with it, delete it and add it again read-only"
             }
+        }
+    }
+}
+#endregion
+
+#region Environments
+# A job naming an environment gets its secrets and an OIDC subject,
+# repo:<owner>/<repo>:environment:<name>, that names no branch, and an
+# environment's deployment branches default to no restriction (GitHub
+# docs, read 2026-11-17). So with no branch policy, any branch, and a
+# workflow_dispatch run against one, deploys as whatever trusts it.
+# Listing environments takes read access alone. Protected branches only
+# is context: it lets every branch deploy while none is protected, which
+# this script does not total.
+Step 'Environments'
+$environmentsRead = Invoke-GhApi -Endpoint "repos/$Repo/environments?per_page=100"
+if ($environmentsRead.ExitCode -ne 0) {
+    Warn "could not read the environments: $($environmentsRead.Failure)"
+} else {
+    $environmentList = $environmentsRead.Text | ConvertFrom-Json -AsHashtable
+    # @(): a function's empty array arrives as $null, whose .Count strict mode refuses.
+    $environments = @(Get-List $environmentList 'environments')
+    $environmentTotal = Get-Key $environmentList 'total_count'
+    if ($environments.Count -eq 0) { Ok 'no environments' }
+    if ($environmentTotal -gt $environments.Count) {
+        Info "only the first $($environments.Count) of $environmentTotal environments read"
+    }
+    foreach ($environment in $environments) {
+        $environmentName = Get-Key $environment 'name'
+        # Not $policy: variable names ignore case, and that is -Policy.
+        $branchPolicy = Get-Key $environment 'deployment_branch_policy'
+        if ($null -eq $branchPolicy) {
+            Warn "environment '$environmentName': any branch can deploy to it" `
+                -Why ('a job naming it from any branch gets its secrets and its OIDC subject, ' +
+                    'which names no branch') `
+                -Fix ("$settingsUrl/environments -- Deployment branches and tags: " +
+                    'Selected branches and tags; provision-deploy-identity sets them ' +
+                    'before any credential trusts it')
+        } elseif (Get-Key $branchPolicy 'custom_branch_policies') {
+            Ok "environment '$environmentName' deploys from selected branches and tags"
+        } else {
+            Info ("environment '$environmentName' deploys from protected branches only, " +
+                'every branch while none is protected')
         }
     }
 }

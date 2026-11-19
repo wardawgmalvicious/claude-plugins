@@ -295,7 +295,7 @@ slicers. Avoid slicing by the same field on a chart's category axis.
 | Categorical 10-50 | List | `listSlicer` |
 | Categorical >50 | Dropdown | `slicer` (mode: Dropdown) |
 | Annual or period selector | Dropdown or tile | `slicer` (mode: Dropdown) or `advancedSlicerVisual` |
-| True date range | Date picker | `slicer` (mode: Between) |
+| True date range | Between range | `slicer` (mode: Between) |
 | Hierarchy | Tree | `listSlicer` |
 
 ### Temporal slicer decision matrix
@@ -309,7 +309,7 @@ presence of a full-date column.
 | User needs to compare discrete periods (e.g., 2020 vs 2023) | Year/month dropdown with multi-select | `Between` implies continuous ranges, not discrete comparisons |
 | Month/quarter reporting with 12-36 periods | Period dropdown or relative date | Keeps the header compact while exposing current period |
 | Analyst needs arbitrary day/month range exploration | Full-date `Between` | Range selection is the task |
-| Date column is an integer key/text key or did not render as a date picker | Dropdown on Year/Period | `Between` requires a renderable Date/DateTime field |
+| Date column is an integer key/text key or did not render as a date range | Dropdown on Year/Period | `Between` requires a renderable Date/DateTime field |
 | Many dates but no need for arbitrary ranges | Relative date or period dropdown | Avoids oversized controls for low-value precision |
 
 **Placement** (choose by slicer count — see `references/layout.md`):
@@ -375,13 +375,16 @@ Year/Period dropdown or tile.
 - `date`: 9pt font for date picker text
 
 **Per-visual must set:**
-- `data.mode` — "Between"
+- `data.mode` — "Between", never left out: a new slicer on a date column
+  takes the Date picker style, `RelativeDatePicker`, not Between
+  ([visual-json.md](../../visual-json.md), § August 2026 formatting
+  properties > Slicer)
 - `header.text` — "Date Range" or similar
 - VCO `background`, `border`, `padding` — for fill vs light variant
 
 **When to prefer Dropdown/Tile over Between:**
 - Executive or scan-first page with annual/quarterly grain
-- Integer/text year-month key or date picker did not render
+- Integer/text year-month key or date range did not render
 - User expects multi-select (e.g., compare 2020 vs 2023)
 - ≤30 distinct values where a list is scannable
 

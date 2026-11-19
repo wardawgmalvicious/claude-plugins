@@ -19,8 +19,9 @@ relying on a limit; this surface moves.
 Microsoft Fabric](https://learn.microsoft.com/fabric/graph/overview) — a
 separate `GraphModel` item — and is **optional and opt-in**: every
 ontology has a schema graph, but its instance data is materialized only
-when you opt in through **Manage graph** (`how-to-use-ontology-graph`,
-checked 2026-10-07). GQL, graph-type DDL and `executeQuery` belong to
+when you opt in through **Home > Manage > Graph**
+(`how-to-use-ontology-graph`, read 2026-11-18). GQL, graph-type DDL and
+`executeQuery` belong to
 [graph.md](graph.md); this file only carries the graph constraints that
 bite at **ontology** time. Agent configuration belongs to
 [data-agent.md](data-agent/data-agent.md) (conversational, ≤5 sources)
@@ -127,29 +128,34 @@ queryable, by design. Check the mode before blaming the data.
   names contain `,` `;` `{}` `()` `\n` `\t` `=` **or a space**, and
   automatically on the delta tables backing **import-mode** semantic
   model tables. Symptom: the entity type details graph does not load
-  (`resources-troubleshooting`, checked 2026-10-23).
+  (`resources-troubleshooting`, checked 2026-10-23). A KQL
+  `.drop column` sets it on an Eventhouse table's OneLake copy too
+  (`rti-items`, `references/eventhouse/references/onelake-availability.md`).
 - **Duplicate property names must share a type** across entity types. A
   string `ID` on one and an integer `ID` on another is what makes entity
   types go missing from a generated ontology.
 - **Renaming a source table after binding breaks it**: entity type
   details lose their connection (`resources-troubleshooting`, checked
   2026-10-23). Bindings carry `sourceTableName` as a string.
-- **Upstream changes need a refresh.** A schema change re-ingests all
-  bound data, but new, updated or deleted upstream rows leave a
-  materialized graph stale until an ingestion runs: ask the ontology
-  agent to update the entity type, or *Refresh now* (or schedule) the
-  graph model in the workspace (`how-to-use-ontology-graph`, checked
-  2026-10-07).
-- **Graph projection has its own eligibility.** *Manage graph* marks an
-  entity type *Ineligible* when it has no entity type key, no binding,
-  more than one backing table, or data bound to a semantic model: only
-  lakehouse and mirrored-database delta tables project. Binary and
-  Variant properties project as String, and time-series ones as their
-  base type. Two more change what a GQL query against the graph sees:
-  an entity or relationship that uses a namespace gets the namespace
+- **Changed upstream rows need a graph refresh; changed columns, a
+  schema update.** Rows added, updated or deleted upstream leave a
+  materialized graph stale until it refreshes, by the graph refresh
+  controls rather than an agent request: the refresh icon on the *Last
+  refresh* card under **Home > Manage > Graph**, or *Refresh now* (or a
+  schedule) on the graph model in the workspace. A changed upstream
+  column is a schema update instead: review the bindings, which the
+  ontology agent can help with (`how-to-use-ontology-graph`, read
+  2026-11-18).
+- **Graph projection has its own eligibility.** *Home > Manage > Graph*
+  marks an entity type *Ineligible* when it has no entity type key, no
+  binding, more than one backing table, or data bound to a semantic
+  model: only lakehouse and mirrored-database delta tables project.
+  Binary and Variant properties project as String, and time-series ones
+  as their base type. Two more change what a GQL query against the graph
+  sees: an entity or relationship that uses a namespace gets the namespace
   added as a prefix to its node or edge label, and a derived entity's
   node type carries the properties it inherits from its base entity as
-  well as its own (same page, checked 2026-10-23).
+  well as its own (same page, read 2026-11-18).
 - **Three meters, one billable**, in the new experience: **Ontology
   Discovery**, 1,000 CU-seconds per definition read, one about every 20
   minutes included while the item is open, so close it when done; the
@@ -210,11 +216,11 @@ From the binding page, checked 2026-10-23:
   mirrored database, semantic model, SQL database and warehouse. Binding
   a **semantic model** needs both **Read and Build** permissions on it.
 - **The first source is primary; each one added later is secondary**,
-  related to the primary on a common column picked from each table. A
-  column name present in both tables gets a **`_2`** suffix on the new
-  source's default property name. The page no longer states the old
-  static-first rule below, and does not say a time-series source can
-  bind without a static one.
+  related to the primary on a common column picked from each table, its
+  proposed properties reviewed beside the existing ones before the save.
+  The page no longer says a column name both tables share gets a **`_2`**
+  suffix, or states the old static-first rule below, and does not say a
+  time-series source can bind without a static one (read 2026-11-18).
 - **An entity type key is optional**, since the overview announces
   keyless entity types; when one is defined, its properties are
   `string` or `integer` only. A keyless entity type cannot be projected

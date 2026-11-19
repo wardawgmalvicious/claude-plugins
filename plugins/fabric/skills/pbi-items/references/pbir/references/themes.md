@@ -33,7 +33,7 @@ Switch via **Design** ribbon → **Customize theme**, which opens the **Theme** 
 Announced GA in the August 2026 update; page confirmed GA on 2026-09-07. No Desktop build number was verified.
 
 The published theme JSON schema referenced by visualStyles tracks the
-latest base. The newest on 2026-11-07 is
+latest base. The newest on 2026-11-18 is
 [`reportThemeSchema-2.159.json`](https://github.com/microsoft/powerbi-desktop-samples/blob/main/Report%20Theme%20JSON%20Schema/reportThemeSchema-2.159.json),
 in `microsoft/powerbi-desktop-samples` on GitHub.
 
@@ -46,7 +46,7 @@ in `microsoft/powerbi-desktop-samples` on GitHub.
 | `background` / `foreground` / `tableAccent` | string | Semantic colors |
 | `good` / `bad` / `neutral` / `minimum` / `maximum` / `center` | string | Sentiment colors |
 | `textClasses` | object | `title`, `label`, `callout`, `header` → `fontSize`, `fontFace`, `color` |
-| `visualStyles` | object | `[visualType][state]` formatting overrides |
+| `visualStyles` | object | `[visualType][stylePresetName]` formatting defaults and presets |
 
 ### Inheritance Hierarchy (broad → specific)
 
@@ -58,23 +58,44 @@ The Fluent 2 base theme carries **no per-visual font overrides**, so `textClasse
 
 ### visualStyles Structure
 
-Two-level keys: `[visualType][state]`. Second level is a **state**, not an instance selector.
-
-| State | Meaning |
-|---|---|
-| `"*"` | Default (normal rendering) — most common |
-| `"hover"` | Hover state |
-| `"press"` | Press/click state |
-| `"selected"` | Selected state |
+Two-level keys: `[visualType][stylePresetName]`. The second level is
+**`"*"`, the base visual style**, or a named style preset, not a state or
+an instance selector (Learn, [Create custom report themes § Set
+properties for visual
+types](https://learn.microsoft.com/power-bi/create-reports/report-themes-create-custom#set-properties-for-visual-types),
+read 2026-11-18). A named preset inherits the base style and overrides
+any property both set; `stylePreset` in the `"*"` entry names the
+default preset.
 
 ```json
 "visualStyles": {
   "slicer": {
-    "*":     {"items": [{"fontColor": {"solid": {"color": "#000000"}}}]},
-    "hover": {"items": [{"fontColor": {"solid": {"color": "#118DFF"}}}]}
+    "*":         {"items": [{"fontColor": {"solid": {"color": "#000000"}}}]},
+    "Blue text": {"items": [{"fontColor": {"solid": {"color": "#118DFF"}}}]}
   }
 }
 ```
+
+A theme can set the slicer's style (GA, November 2026, by Learn's
+[November 2026 What's new](https://learn.microsoft.com/power-bi/fundamentals/whats-new)).
+The theme schema's `slicer` definition holds it as `data` > `mode`,
+taking the values [visual-json.md](visual-json.md) lists for `data.mode`
+(§ August 2026 formatting properties > Slicer); `mode` was in schema
+2.150 already, and `'RelativeDatePicker'` by 2.156:
+
+```json
+"visualStyles": {
+  "slicer": {
+    "*": {"data": [{"mode": "Dropdown"}]}
+  }
+}
+```
+
+By the November 2026 feature summary, a mode the slicer's column cannot
+take falls back to a compatible one. Learn's
+[custom report themes](https://learn.microsoft.com/power-bi/create-reports/report-themes-create-custom)
+page shows no `mode` example (read 2026-11-18), and no report here has
+shown Desktop applying one, so check it against a saved report.
 
 ### Theme JSON Value Conventions
 
@@ -220,6 +241,26 @@ Stale `objects` / `visualContainerObjects` in visual.json override theme default
 - Clear container only (safe, preserves CF): `jq 'del(.visualContainerObjects)' visual.json`
 - Clear all bespoke formatting (removes CF too): `jq 'del(.objects) | del(.visualContainerObjects)' visual.json`
 
+The Format visual pane has two visual-wide resets, which Learn scopes as
+[follows](https://learn.microsoft.com/power-bi/create-reports/power-bi-visual-style-presets#reset-formatting-pane-changes)
+(read 2026-11-18), beside a reset per section and per group
+([Get started formatting report visualizations § Reset to default
+options](https://learn.microsoft.com/power-bi/visuals/power-bi-visualizations-format-visual#reset-to-default-options)):
+
+- **Reset all style settings to default**: formatting changes only; it
+  keeps conditional formatting, actions and added data such as custom
+  and reference labels. The in-product counterpart of the first line.
+- **Reset all settings to default**: every change in the pane, including
+  conditional formatting, actions and data-bound items. The counterpart
+  of the second line.
+
+Whether either reset maps exactly onto its `jq` line is unmeasured. By
+Learn, pane formatting is stored in `objects`, so the style reset also
+clears chart formatting such as a legend position, which the first line
+keeps; a visual with actions or reference labels may differ as well.
+Learn says the pane's formatting outranks the visual's style preset,
+which the style reset removes so the preset shows again.
+
 ### Gotchas
 
 | Issue | Cause | Fix |
@@ -231,7 +272,7 @@ Stale `objects` / `visualContainerObjects` in visual.json override theme default
 | Theme changes invisible after apply | Stale `visualContainerObjects` in visuals | Run `pbir visuals clear-formatting --keep-cf -f` |
 | `ColorId` out of range | Palette has fewer entries than referenced | Check `dataColors[]` length |
 | Font fallback chain broken | A font name with spaces not single-quoted, or visual.json's triple-quoted literal copied into a theme | `"'Segoe UI Semibold', wf_segoe-ui_semibold, helvetica, arial, sans-serif"` |
-| Inheritance not applying | Put properties at wrong state key | Default state is `"*"`, not `"default"` |
+| Inheritance not applying | Put properties at wrong preset key | The base style is `"*"`, not `"default"`; another name makes a named preset |
 | Third-level `"*"` catch-all confusing | Real themes sometimes nest another `"*"` for generic props | Treat as fallback; normal paths still work |
 | `textClasses` not inheriting | Used `fontSize` as string | Must be bare integer |
 
@@ -245,7 +286,7 @@ Stale `objects` / `visualContainerObjects` in visual.json override theme default
 
 ### MS Learn link bundle
 
-Curated set of Microsoft Learn pages relevant to Power BI report themes — the JSON file format itself, the dataColors palette, sentiment colors, textClasses, visualStyles by visual type and state, the inheritance model, and how the file lives inside a PBIR project under `StaticResources/`.
+Curated set of Microsoft Learn pages relevant to Power BI report themes — the JSON file format itself, the dataColors palette, sentiment colors, textClasses, visualStyles by visual type and style preset, the inheritance model, and how the file lives inside a PBIR project under `StaticResources/`.
 
 The 3 highest-leverage entry points (use report themes / create custom themes / report theme JSON file format) are also linked in § Reference above for in-context use; this section holds the comprehensive set.
 
@@ -260,6 +301,18 @@ The 3 highest-leverage entry points (use report themes / create custom themes / 
 #### Style presets (CY24SU10+ style swatches)
 
 - [Create style presets in custom themes](https://learn.microsoft.com/power-bi/create-reports/report-themes-create-custom#create-style-presets-in-custom-themes) — preset-per-visual-type pattern; how the Style dropdown surfaces in the visual format pane after import.
+- [Use visual style presets](https://learn.microsoft.com/power-bi/create-reports/power-bi-visual-style-presets)
+  — the Format pane's **Style presets** > **Save current formatting as**
+  box writes into the report's custom theme, so a registered theme can
+  hold presets nobody hand-wrote (page read 2026-11-18, no preview
+  label). What a save writes under `visualStyles.<visual type>`: a new
+  name adds a named preset beside the `"*"` entry; `*` updates the base
+  visual style, which every named preset of that type inherits; a
+  built-in preset's name stores a local override in the custom theme,
+  and deleting the override restores the built-in definition. The pane
+  cannot rename a preset: edit the theme JSON, and the default's name
+  too if it is the `stylePreset` in the `"*"` entry. Download the theme
+  to reuse its presets in another report.
 
 #### Text classes
 

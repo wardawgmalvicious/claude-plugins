@@ -110,7 +110,8 @@ and guards the documented reading: belt-and-braces, not a required
 workaround.
 
 **With OneLake availability ON the surface narrows**: adding and deleting
-columns work (April 2026+), but altering a column type, renaming a table,
+columns work (April 2026+), a delete turning the OneLake copy to Delta
+column mapping, but altering a column type, renaming a table,
 applying RLS, and deleting/truncating/purging data do **not** — toggle
 availability off, change, toggle back on. Full matrix:
 [references/onelake-availability.md](references/onelake-availability.md).
@@ -176,7 +177,7 @@ Database-level policies (`.alter database MyDB policy ...`) act as defaults; tab
 ## Materialized Views
 
 ```kql
-.create materialized-view with (backfill=true) EventCounts on table Events {
+.create async materialized-view with (backfill=true) EventCounts on table Events {
     Events | summarize Count = count(), LastSeen = max(Timestamp) by EventType
 }
 
@@ -188,6 +189,27 @@ Database-level policies (`.alter database MyDB policy ...`) act as defaults; tab
 
 // Query a materialized view
 materialized_view("EventCounts") | where EventType == "Login"
+```
+
+**A backfill runs `async`, and its view stays unlisted until it ends**
+(Learn, `.create materialized-view`, read 2026-11-18). Meanwhile
+`.show materialized-views` omits it, a query of it fails `Failed to
+resolve table or column expression`, and a second create fails `Only a
+single instance can run concurrently` while the first runs on. Poll
+`.show operations <OperationId>`, by the ID the create returned: its
+`Operation` reads `MaterializedViewCreate`, not the
+`MaterializedViewCreateOrAlter` of Learn's cancel example, so a filter
+on that name finds nothing (observed 2026-11-18, a sandbox Eventhouse,
+10,747,760 source rows).
+
+**Listed is not full.** A view created without `backfill=true`, the
+default `false`, is listed at once and empty: one held 0 of the 233
+keys its query yields (observed 2026-11-18). A schema script's
+`.create-or-alter` makes one so. Prove a view complete against its own
+query, and accept only `Held >= Expected`:
+
+```kql
+print Held = toscalar(EventCounts | count), Expected = toscalar(<the view's query> | count)
 ```
 
 

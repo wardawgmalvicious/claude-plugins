@@ -39,10 +39,10 @@ Three parts and `.platform`: `mashup.pq`, `queryMetadata.json` and any
 `<name>.mdf`. The parts table is in
 [references/dataflow-api.md](references/dataflow-api.md) § Definition.
 
-Serialization mechanics — EOF newlines, CRLF/LF, `.gitattributes` — are
-in the `fabric-git-serialization` rule, which globs this folder too. M
-style conventions are the `coding-m` rule's, which globs `mashup.pq`.
-Neither is restated here.
+Serialization mechanics are
+[git-serialization.md](../git-serialization.md)'s: `queryMetadata.json`
+ends at its last character, with no final newline. M style conventions,
+such as naming and step layout, are not covered here.
 
 ## 2. `queryMetadata.json`
 
@@ -160,7 +160,7 @@ first stage only; later stages can deploy without it.
 
 ## 11. Gen1 → Gen2: two routes, one of them one-way
 
-| | Save As | Upgrade Wizard (preview) |
+| | Save As | Upgrade Wizard |
 | --- | --- | --- |
 | Original | **kept** | **replaced** |
 | Item ID | new | **same** |
@@ -308,9 +308,8 @@ separately, even when an on-demand refresh succeeds.
 
 ## See also
 
-- **coding-m rule** — M style; co-loads on `mashup.pq`
-- **fabric-git-serialization rule** — line endings and EOF newlines;
-  globs this folder
+- [git-serialization.md](../git-serialization.md) — line endings, end
+  of file and what a portal commit deletes
 - **rest-api skill** — LRO polling, `?updateMetadata`,
   pagination, rate limits; `fab` filesystem commands over the item, in
   its `references/cli.md`; the cross-product error index, in its

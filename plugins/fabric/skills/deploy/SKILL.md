@@ -1,7 +1,7 @@
 ---
 name: deploy
-description: "Use when deploying, promoting or releasing Microsoft Fabric or Power BI items between workspaces — dev → test → prod, CI/CD — by any route: the fabric-cicd Python library (`FabricWorkspace`, `publish_all_items`, `parameter.yml`, `config.yml`), `fab deploy`, Git integration's Update From Git, or a deployment pipeline, scripted or run from Azure DevOps or GitHub Actions. Picks the route, checks the identity, shows the plan and stops before writing to a later stage, then verifies the deploy."
-when_to_use: "Use when asked to deploy, promote or release a workspace or its items, set up a release pipeline for one, create a deployment pipeline or assign a workspace to a stage, or debug a deploy: a 403 that is a missing pipeline role rather than a workspace role, an item duplicated instead of overwritten, a report that lost its semantic model, rules that didn't apply, a parameter.yml value not substituted, or a greyed-out deploy-to-previous-stage button."
+description: "Use when deploying, promoting or releasing Microsoft Fabric or Power BI items between workspaces — dev → test → prod, CI/CD — by any route: the fabric-cicd Python library (`FabricWorkspace`, `publish_all_items`, `parameter.yml`, `config.yml`), `fab deploy`, Git integration's Update From Git, or a deployment pipeline, scripted or run from Azure DevOps or GitHub Actions. Also a Fabric app (Rayfin, the `AppBackend` item): `npx rayfin up` across workspaces, its Git and pipeline route, and linking its scaffold's `.agents/skills/` into Claude Code. Picks the route, checks the identity, shows the plan and stops before writing to a later stage, then verifies the deploy."
+when_to_use: "Use when asked to deploy, promote or release a workspace or its items, set up a release pipeline for one, deploy a Fabric app or open a Rayfin project, create a deployment pipeline or assign a workspace to a stage, or debug a deploy: a 403 that is a missing pipeline role rather than a workspace role, an item duplicated instead of overwritten, a report that lost its semantic model, rules that didn't apply, a parameter.yml value not substituted, or a greyed-out deploy-to-previous-stage button."
 # model: inherit  # any model: value blocks Copilot slash invocation
 # effort: medium   # unset = inherit session effort; there is no 'effort: inherit'
 disable-model-invocation: false
@@ -34,6 +34,11 @@ observed, only where no page covers it.
 | Git, the same in one command | `fab deploy --config`, which wraps the library and reads its `config.yml` and `parameter.yml` | 2 | [fab-deploy.md](references/fab-deploy.md), then [fabric-cicd.md](references/fabric-cicd.md) |
 | Git, a branch per stage, each stage's workspace connected | Git integration's Update From Git | 1 | `rest-api` § Git Integration APIs |
 | The workspace: dev promoted to test and prod in the service | deployment pipelines | 3 | [deployment-pipelines.md](references/deployment-pipelines.md) |
+| A Fabric app's Rayfin project, `rayfin/rayfin.yml` | `npx rayfin up`, or Git integration then deployment pipelines; never the library or `fab deploy` | — | [fabric-apps.md](references/fabric-apps.md) |
+
+**A Rayfin project, built or deployed, starts at
+[fabric-apps.md](references/fabric-apps.md) § 1**: its scaffold's own
+skills sit in `.agents/skills/`, where Claude Code does not look.
 
 Learn's option 2 also names the Bulk Import Item Definitions API, which
 the library calls under `enable_bulk_publish`; Learn's
@@ -59,6 +64,9 @@ workspace (Git only through dev)" (read 2026-10-09). Decision guide:
 - for a service principal, on any route, the tenant setting *Service
   principals can call Fabric public APIs* (older Learn pages: *can use
   Fabric APIs*);
+- on any route that publishes a Variable Library, Read on each
+  connection and item its active value set references, User on a
+  connection for a service principal (`variable-library` § Gotchas);
 - for Update From Git, the caller's own Git credentials, and more than
   the REST page's Contributor: write permission on every item, item
   ownership where a tenant switch blocks non-owners, and Build on
@@ -125,7 +133,10 @@ wait for the user's yes, as `land-branch` stops before `main`:
   missing `unpublish` block unpublishes orphans by default, or
   `enable_hard_delete`, which bypasses the recycle bin;
 - a backward deploy, or an unassign, which destroys the stage's
-  deployment history and its rules for good.
+  deployment history and its rules for good;
+- a Fabric app's `--force` on `npx rayfin up`, `up db apply`,
+  `up storage apply` or `dev storage apply`, any of which can drop data
+  ([fabric-apps.md](references/fabric-apps.md) § 4).
 
 "Deploy it to prod" names a target, not what changes there, so it is not
 the yes. Writing a CI pipeline file, or a script for the user to run,
@@ -175,7 +186,11 @@ A deploy moves metadata, not data, on every route. After one:
 4. Name what the deploy did not carry. On a pipeline that includes a
    semantic model's refresh schedule, credentials and role assignments
    ([deployment-pipelines-tables.md](references/deployment-pipelines-tables.md)
-   § What a deploy copies).
+   § What a deploy copies). Name, too, what it changed: a first publish
+   as a service principal makes it the run identity of every data
+   pipeline it wrote, so run one by hand that reaches its connections
+   before a schedule fires (`data-items`,
+   `references/data-pipeline/data-pipeline.md` § 8).
 
 ## 6. When it fails
 
