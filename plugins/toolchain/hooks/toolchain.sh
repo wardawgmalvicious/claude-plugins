@@ -188,10 +188,12 @@ unpacked() {
     return 1
 }
 
-# fetch <tool>: sets WHY on failure.
+# fetch <tool>: sets WHY on failure, and KEPT when the download could not
+# replace a copy already in bin/, which then stands.
 fetch() {
-    local tool=$1 tmp file got name src rc kept=0
+    local tool=$1 tmp file got name src rc
     WHY=
+    KEPT=0
     if ! lock_row "$tool"; then
         WHY="no pinned build for $OS-$ARCH"
         return 1
@@ -246,7 +248,7 @@ fetch() {
         # no version stamp is written and the next session fetches again.
         if ! mv -f "$src" "$BIN/$name$EXE" 2>/dev/null; then
             if [[ -f $BIN/$name$EXE ]]; then
-                kept=1
+                KEPT=1
             else
                 WHY="cannot write $BIN/$name$EXE"
             fi
@@ -254,7 +256,7 @@ fetch() {
     done
     rm -rf "$tmp"
     [[ -z $WHY ]] || return 1
-    ((kept)) || printf '%s\n' "$VERSION" >"$BIN/.$tool.version" 2>/dev/null
+    ((KEPT)) || printf '%s\n' "$VERSION" >"$BIN/.$tool.version" 2>/dev/null
     return 0
 }
 
@@ -293,6 +295,10 @@ for TOOL in jq uv; do
     if fetch "$TOOL"; then
         USED_BIN=1
         FETCHED=1
+        if ((KEPT)); then
+            add "downloaded $TOOL $VERSION, its SHA-256 checked, but could not replace the copy already in $BIN, perhaps held by another session or an antivirus scan, or not writable; that copy, perhaps an older version, stays for now, and the next session tries again"
+            continue
+        fi
         NOTE="fetched $TOOL $VERSION into $BIN, its SHA-256 checked; the Bash tool finds it there"
         [[ $OS == windows ]] && NOTE="$NOTE, PowerShell does not, so to have it everywhere: $(install_line "$TOOL")"
         add "$NOTE"
@@ -307,6 +313,7 @@ else
     gh_signed_in
     case $? in
         0) ;;
+        124) add "gh did not answer gh auth token within 10 seconds, so whether it is signed in was not checked" ;;
         126 | 127) add "gh is on PATH but would not run: reinstall it with $(install_line gh)" ;;
         *) add "gh is not signed in: run gh auth login" ;;
     esac
