@@ -8,5 +8,6 @@
   "homepage": "https://github.com/wardawgmalvicious/claude-plugins",
   "repository": "https://github.com/wardawgmalvicious/claude-plugins",
   "license": "MIT",
-  "keywords": ["claude-code", "fabric", "power-bi", "microsoft-fabric"]
+  "keywords": ["claude-code", "fabric", "power-bi", "microsoft-fabric"],
+  "dependencies": ["toolchain"]
 }
