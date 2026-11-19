@@ -143,8 +143,8 @@ account, PR opened cleanly). `github-mcp`, project scope (`.mcp.json`)
 and bound to one token, is the fallback where loaded and matching, and
 the route where `gh` matches no one. A cloud session,
 `CLAUDE_CODE_REMOTE=true`, runs neither (observed 2026-11-15): its own
-GitHub tools open the PR (`work-issue`'s `references/cloud-session.md`,
-where installed). A `CLAUDE.md` can state the rule, not run the comparison.
+GitHub tools open the PR. A `CLAUDE.md` can state the rule, not run the
+comparison.
 
 **A confirmed identity is not a confirmed capability.** `get_me` proves
 which account a token acts as, not what it may do, and the gap is

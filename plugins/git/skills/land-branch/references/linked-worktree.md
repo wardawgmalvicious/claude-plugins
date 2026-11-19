@@ -168,7 +168,7 @@ used by worktree at '<path>'` (2026-09-29).
   **A removal that exits 255 leaves the folder held**: git drops the
   worktree's entry and admin folder anyway, but deletes files only up
   to the first one it cannot, which stays with every entry after it
-  (`lead-sessions`' `landing-gate.md`, Git 2.56.0, 2026-11-04). A
+  (observed 2026-11-04, Git 2.56.0). A
   native process working in the folder itself fails only the folder,
   `error: failed to delete '<worktree>': Permission denied`, and leaves
   it empty, holding it until it exits, as a `ping` started there did
@@ -188,8 +188,10 @@ used by worktree at '<path>'` (2026-09-29).
   own shell too. Unelevated, `handle` printed
   `No matching handles found.` for the `ping`, which the scan listed
   (2026-11-18). It finds only a working-directory holder, and an empty
-  result clears nothing: an open-file holder needs `landing-gate.md`'s
-  elevated `handle` line. The scan:
+  result clears nothing: an open-file holder needs Sysinternals'
+  `handle -accepteula -nobanner (Resolve-Path '<worktree>').Path`, run
+  elevated by the user in PowerShell, since Handle matches only the
+  folder's absolute, backslash path. The scan:
 
   ```bash
   uv run --no-project --with psutil python -I -c "import os,sys,psutil; r=os.path.normcase(os.path.abspath(sys.argv[1])); [print(p.info) for p in psutil.process_iter(['pid','name','ppid','cwd']) if p.info['cwd'] and (os.path.normcase(p.info['cwd'])+os.sep).startswith(r+os.sep)]" '<worktree>'

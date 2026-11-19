@@ -5,9 +5,10 @@ before the write to `main`, and put its result in step 6's
 checkpoint.** Its check run, `Claude Code Review` from the `claude`
 app, concludes `neutral`, never as a failure, so it fails no required
 check (code.claude.com `code-review-pull-requests` § "Check run
-output", read 2026-11-18), no repo seen required it, and `gh pr checks <n> --watch --required` returns
-minutes before it ends, while plain `gh pr checks` shows it `pending`,
-then `skipping` once it concludes (observed 2026-11-18, 2.1.326).
+output", read 2026-11-18), no repo seen required it, and
+`gh pr checks <n> --watch --required` returns minutes before it ends,
+while plain `gh pr checks` shows it `pending`, then `skipping` once it
+concludes (observed 2026-11-18, 2.1.326).
 A client repo's session merged four pull requests on their required
 check, about 10 s each, and each review then finished with real
 findings, costing a follow-up pull request apiece; from the fifth on it

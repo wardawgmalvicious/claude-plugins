@@ -50,9 +50,9 @@ Read the merge settings rather than assuming them — and read
 `delete_branch_on_merge` in the same breath, which step 6's disclosure
 needs and which is no more uniform across repos than the other three.
 **Prefer a committed answer where the repo keeps one** — a repo that
-version-controls its own settings in `.github/repo-settings.json`, the
-file `audit-repo`'s `repo-settings.ps1` writes, holds all four and gives you the
-value someone intended, for free. Otherwise ask GitHub:
+version-controls its own settings in `.github/repo-settings.json` holds
+all four and gives you the value someone intended, for free. Otherwise
+ask GitHub:
 
 ```bash
 gh api repos/<owner>/<repo> \
@@ -256,8 +256,7 @@ split under them, a squash collapses it. Name which, as for a requested
 
 **Where a rule on `main` stays unmet and only the bypass merges, `gh pr
 merge` needs `--admin`, and it goes in only on the user's yes for that
-pull request.** The case is the solo stage `audit-repo`'s
-`references/profiles.md` describes: a code owner's review required,
+pull request.** The case is a solo stage: a code owner's review required,
 self-approval blocked, and one maintainer, so the plain command is
 refused. Once the required checks pass on the pinned head, read why:
 
