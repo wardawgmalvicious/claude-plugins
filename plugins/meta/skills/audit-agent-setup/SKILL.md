@@ -82,10 +82,10 @@ once, 2026-10-21). Count each credential-shaped pattern as the
 catalog's credentials-file signal.
 
 A Read of `.mcp.json` or a settings file loads the user-scope rule
-`claude-config-scoping.md` by its glob, and a Read of a `CLAUDE.md`
-loads `agent-instructions-scoping.md`; this skill applies their tables
-and does not restate them. A pipe or a `cat` of several files loads
-neither.
+`claude-config-scoping.md` by its glob, a Read of a `CLAUDE.md`
+`agent-instructions-scoping.md`, and a pipe or multi-file `cat` neither:
+this skill applies their tables, and where one did not load, as for a
+plugin's user, its copy in `references/`, saying the findings stand on it.
 
 List `.claude/agents/`, `.claude/skills/` and `.claude/rules/` by Glob;
 Read one only when a finding turns on it. Then whether each config file
@@ -432,15 +432,15 @@ template the MCP README describes, or one Learn documents through
 `microsoft-learn-mcp`. Found nowhere, it is not recommended; say what
 was looked for.
 
-**A copied skill goes only if its group can lose it.** Its description
-saying it does not apply here is not enough. `copy-skills.ps1` selects
-whole groups, so a skill in `.claude/skills/.managed-skills.json` whose
-group under the payload's `skills/` holds one the repo keeps cannot be
-dropped by that script, and a hand delete is planned as a `copy` on the
-next refresh (read from the script, not run; 2026-11-01). Grep the kept
-skills for its name too, and read each hit as a dependency or only a
-boundary. Where either stops it, or the payload cannot be read, recommend
-no removal and say why.
+**A copied skill moves with its group, whole.** A skill listed in
+`.claude/skills/.managed-skills.json` was copied from the payload's
+`skills/` by a script retired once client repos took each group's plugin
+from the organization's catalog (2026-11-17), so nothing refreshes it.
+Recommend removing no one copied skill, whatever its description says,
+but the move: the copy and its manifest deleted, and the group's plugin,
+which brings the group whole as the copy did, enabled in
+`.claude/settings.json`. Name that plugin only as **Name only what
+exists here** allows; found nowhere, recommend no change and say what was looked for.
 
 ## 5. Place each item
 

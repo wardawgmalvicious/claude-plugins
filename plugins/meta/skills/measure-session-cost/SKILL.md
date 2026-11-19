@@ -14,9 +14,9 @@ description: "Reports what a Claude Code session cost at API list prices, by pha
 Each API call re-reads everything before it from the prompt cache, and
 writes what is new, so a long session is dear because every call carries
 the whole conversation. Two work-issue sessions in a client repo cost
-about $23 and $11 at list prices, of which output was about $4, and
+about \$23 and \$11 at list prices, of which output was about \$4, and
 resuming each after nine idle hours rewrote its whole context to the
-cache, about $5 between them (2026-11-05). The bundled script
+cache, about \$5 between them (2026-11-05). The bundled script
 reads a session's transcripts and says where its cost went, so a change
 meant to lower it can be measured, not assumed.
 
@@ -71,7 +71,7 @@ uv run --no-project ${CLAUDE_SKILL_DIR}/scripts/measure-session-cost.py [<id> | 
   peak context, which counts uncached input, cache reads and cache
   writes, and the cost of each part. Weigh reads and writes together:
   neither dominates, as reads ran 0.9 to 2.6 times writes in this
-  machine's 33 sessions over $5 and 150 calls (2026-11-05). Writes are
+  machine's 33 sessions over \$5 and 150 calls (2026-11-05). Writes are
   what was new to the cache.
 - **Phases** split the main thread at each compaction, which names its
   trigger and the context before and after, and at each gap over an
@@ -91,8 +91,8 @@ uv run --no-project ${CLAUDE_SKILL_DIR}/scripts/measure-session-cost.py [<id> | 
   summary's calls, shown by the gap they leave, and a suggestion's, by
   inference. Over this repo's 80 newest sessions (2026-11-05, 2.1.318),
   it matched the script to half a cent in 49 of the 50 with neither a
-  compaction nor an away summary, and ran up to $0.94 above in 26 of
-  the 27 with either. The fiftieth, a CLI session, ran $0.02 above by
+  compaction nor an away summary, and ran up to \$0.94 above in 26 of
+  the 27 with either. The fiftieth, a CLI session, ran \$0.02 above by
   one call no record holds, which read the last turn's whole cached
   prefix, wrote 84 tokens to the cache and output 148: a suggestion's
   shape, inferred, not confirmed.

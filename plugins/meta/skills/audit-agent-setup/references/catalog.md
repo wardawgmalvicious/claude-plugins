@@ -91,7 +91,7 @@ line runs, and a session launched there has it switched off.
 | no `CLAUDE.local.md`, and a fact of that kind turns up in the session or the report | the template, filled and copied to the repo root | Claude Code adds `.claude/settings.local.json` to the global excludes the first time it writes it (settings docs, read 2026-11-17); this file only by `/init`'s personal option under `CLAUDE_CODE_NEW_INIT=1`, into the repo's own `.gitignore` (memory docs, read 2026-11-17) |
 | a `CLAUDE.local.md` no ignore rule matches | a finding: one `git add .` from a commit | the global excludes file, `git config core.excludesFile`, else `~/.config/git/ignore`, where the user's machine bootstrap may list it already; never the repo's `.gitignore` in a client repo, which is a commit there |
 | a tracked `CLAUDE.local.md` | a finding: one person's notes shared with every clone | `git rm --cached`, then the row above; pushed with an identity string, `recreate-repo` |
-| a `CLAUDE.local.md`, an `AGENTS.md`, and no `CLAUDE.md` or `.claude/CLAUDE.md` | a finding: the local file switches the `AGENTS.md` off for its owner | an `@AGENTS.md` line in the local file, as the template carries; the user-scope rule `agent-instructions-scoping.md` has why |
+| a `CLAUDE.local.md`, an `AGENTS.md`, and no `CLAUDE.md` or `.claude/CLAUDE.md` | a finding: the local file switches the `AGENTS.md` off for its owner | an `@AGENTS.md` line in the local file, as the template carries; `agent-instructions-scoping.md`, the user-scope rule or its copy beside this file, has why |
 
 Of the three launch built-ins only `run` is in Claude's listing by
 default: `/verify` runs only when the user types it (skills docs, read

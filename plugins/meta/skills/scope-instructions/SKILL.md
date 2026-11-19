@@ -6,7 +6,7 @@ disable-model-invocation: false
 argument-hint: "[file-or-folder]"
 allowed-tools: Read Grep Glob Bash(git rev-parse *) Bash(git ls-files *) Bash(git shortlog *) Bash(git log *) Bash(uv run --no-project ${CLAUDE_SKILL_DIR}/scripts/folder-sessions.py *)
 description: "Sorts a repo's agent instructions into the homes that load them when they are needed. Weighs each section of a root CLAUDE.md or AGENTS.md, each folder README's must-know lines and each file another coding tool reads against root, a paths: rule, a nested CLAUDE.md or AGENTS.md, a skill, a hook, a README or nowhere, by the event that loads each home and whether that event comes before the mistake. Reads every instruction file itself, in its own context, so the scoping rule loads where the proposal is written. Measures the repo's own session transcripts per folder with a bundled script: who worked there, whether they opened its README first, which nested files and rules loaded, how often they compacted. Finds an AGENTS.md a CLAUDE.md silences and a fact two tools' files hold apart. Proposes every move in one table and edits only on approval. Where /init and /doctor refresh and trim a root file, this moves what does not belong there."
-when_to_use: "Use when asked where a piece of guidance should live, whether a repo or folder needs a nested CLAUDE.md or AGENTS.md, to split, slim or reorganize a CLAUDE.md, to move instructions into .claude/rules/, to audit instruction files across Claude, Copilot and other tools, or why a folder's README or an AGENTS.md is never read. A learning about how Claude Code loads these files is capture-learning's, into its user-scope rule."
+when_to_use: "Use when asked where a piece of guidance should live, whether a repo or folder needs a nested CLAUDE.md or AGENTS.md, to split, slim or reorganize a CLAUDE.md, to move instructions into .claude/rules/, to audit instruction files across Claude and other tools, or why a folder's README or an AGENTS.md is never read. A learning about how Claude Code loads these files is capture-learning's, into its user-scope rule."
 ---
 
 # Scope instructions: where each piece of guidance lives
@@ -24,10 +24,13 @@ it guards against?**
 
 The homes and how each fails live in one place, the user-scope rule
 `agent-instructions-scoping.md`, which this skill applies and does not
-restate. It **proposes**; files change only on approval, and committing
-is `commit-changes`'s.
+restate; where the user's config holds no such rule, as a plugin's
+user's does not, this skill carries a copy of it,
+[references/agent-instructions-scoping.md](references/agent-instructions-scoping.md).
+It **proposes**; files change only on approval, and committing is
+`commit-changes`'s.
 
-Past that rule, the live page: code.claude.com by the
+Past that rule or its copy, the live page: code.claude.com by the
 `claude-code-docs` MCP server or
 `curl -s https://code.claude.com/docs/en/<page>.md`, and another
 tool's file by that tool's own markdown source, else `WebFetch`, saying
@@ -65,8 +68,6 @@ context:
 - `CLAUDE.md`, `CLAUDE.local.md` and `AGENTS.md` at any depth, and
   `.claude/CLAUDE.md`
 - `.claude/rules/**/*.md`
-- `.github/copilot-instructions.md` and
-  `.github/instructions/**/*.instructions.md`
 - `GEMINI.md`, `.cursor/rules/`, `.windsurfrules`, `.clinerules`
 - each folder's `README.md`, since a must-know line can hide in one
 
@@ -85,9 +86,10 @@ Read it directly from the `rules/` folder of the user's config
 directory, `CLAUDE_CONFIG_DIR` or else `~/.claude`, or `cat` that one
 file if Read refuses a path outside the working directory. A
 project-scope copy of the same name supersedes it; then that one is the
-table. **With neither, say so**: the user's config holds no scoping
-rule, so weigh each home by the load events below, and name that the
-proposal stands on them alone.
+table. **With neither, Read this skill's copy**,
+`${CLAUDE_SKILL_DIR}/references/agent-instructions-scoping.md`, and say
+the proposal stands on that copy, since the user's config holds no
+scoping rule of its own.
 
 For each file, note its length and when it loads: root and every
 ancestor at launch, a nested file at the session's first Read, Write or
@@ -106,18 +108,17 @@ lists: `.claude/settings.json` and `settings.local.json` (`permissions`
 and `hooks`), the git hooks (`git config core.hooksPath`, else
 `.git/hooks`, and `.pre-commit-config.yaml`) and any CI job that fails a
 guarded change. A line a guard already holds answers step 4's question
-5 with evidence, for Claude; Copilot reads no `.claude/settings.json`,
-so for it the line may still be needed (one client repo, 2026-10-26,
-where a deny rule, a hook and a git hook moved three rows).
+5 with evidence, for Claude (one client repo, 2026-10-26, where a deny
+rule, a hook and a git hook moved three rows).
 
 ## 2. Who reads them
 
 - `git shortlog -sne HEAD` for who commits. One author means the user
   alone: design for their tools, not for teammates.
 - **The tools come from the files found in step 1**. The rule says what
-  Codex, Copilot and GitHub.com's Copilot agent read. For Cursor,
-  Windsurf, Cline and Gemini CLI this skill says nothing of when their
-  files load: keep them, and flag a fact they hold apart.
+  Codex reads. For Cursor, Windsurf, Cline and Gemini CLI this skill
+  says nothing of when their files load: keep them, and flag a fact they
+  hold apart.
 - Ask the user only about readers who never commit.
 
 ## 3. Measure the sessions
@@ -176,8 +177,9 @@ nested file past about 60. Ask in order, and stop at the first yes:
    A section that also governs files outside the folder is split, each
    line going where the files it governs are touched.
 3. **Is it about one kind of file, wherever it sits?** A `paths:` rule
-   globbed on that kind, `**/*.sql` and not `*.sql`, which matches the
-   repo root only.
+   globbed on that kind, `**/*.sql`, or a bare `*.sql`, which also
+   matches at any depth; `/*.sql` matches the repo root alone
+   (code.claude.com `memory` § "Path-specific rules", read 2026-11-17).
 4. **Is it a procedure someone asks for in words?** A skill.
 5. **Must it hold before the agent acts?** A hook or a
    `permissions.deny` rule.
@@ -199,11 +201,9 @@ In the same pass:
   mistake sends the agent there. Propose that pointer in the same row,
   or leave the line where it loads; a pointer that fires only for a
   guess misses the session that already knows the command.
-- **One fact, one home across tools.** Where Copilot's file and the
+- **One fact, one home across tools.** Where another tool's file and the
   `CLAUDE.md` disagree, say on a line length the formatter config
-  settles, the config wins and the duplicates go; shared long form
-  sits in one doc that each tool's file points at, by code span in
-  Copilot's (the rule's import-form conditions).
+  settles, the config wins and the duplicates go.
 - **Stale lines.** Check each command, make target, script and path a
   section names against the repo (`Makefile`, `package.json`, the disk)
   and flag what is missing. A full pass for staleness, contradiction and

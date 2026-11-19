@@ -59,11 +59,13 @@ command does not, before DATE, spanning it and begun on or after it, over
 every session on disk, whatever --since says. A Read of the rule file
 holds the text with no failure, so only shell results count. A shell
 result whose command only prints files (cat, head, tail, sed -n, grep,
-git show, git diff, git log, Get-Content, Select-String) holds it with no
-failure either, so a session whose only such results are those counts
-apart, as `printed`, beside `with_it`, never dropped: the two sum to the
-raw figure. A chain holding any other program, such as `make && cat x`,
-is a real result.
+awk, jq, git show, git diff, git log, gh's view, list and diff,
+Get-Content, Select-String, alone, chained, or in a for loop over a word
+list) holds it with no failure either, so a session whose only such
+results are those counts apart, as `printed`, beside `with_it`, never
+dropped: the two sum to the raw figure. A chain holding any other
+program, such as `make && cat x`, is a real result, as is a repo's own
+transcript reader, which no name tells from any other script.
 
 `with_it` splits by the tool_result's is_error: a session with any such
 result flagged is `flagged`, and the rest `unflagged`, which sum to it.
@@ -228,9 +230,16 @@ TOKENS = [
 # rule file, or a grep for the tell itself, would hold the text without the failure.
 SHELLS = {"Bash", "PowerShell"}
 # A command that only prints files holds the rule's text without the failure it describes.
-PRINTERS = {"cat", "head", "tail", "grep", "get-content", "select-string"}
+PRINTERS = {"cat", "head", "tail", "grep", "awk", "jq", "get-content", "select-string"}
 GIT_PRINTERS = {"show", "diff", "log"}
-NEUTRAL = {"cd", "pushd", "set-location"}  # moves the directory, runs nothing that prints
+GH_PRINTERS = {"view", "list", "diff"}  # gh <noun> <verb>, as `gh issue view 12` reads an issue
+# Each prints no file: it moves the directory, prints its own words, which a hit's command holds
+# and its tell does not, or closes a for loop opened by a header only_prints_files() reads apart,
+# as it does a segment of bare VAR=value assignments.
+NEUTRAL = {"cd", "pushd", "set-location", "echo", "printf", "done"}
+# Absent from PowerShell, where each fails with "is not recognized as a name of a cmdlet", as a
+# VAR=value word does: so a PowerShell call holding one ran it and failed, and is real.
+BASH_ONLY = {"awk", "printf", "for", "do", "done"}
 BLOCK_TAG = "<userPreferences>"
 REQUEST_SHAPE = '{"type":"api-request-shape"'
 REQUEST_BLOB = '{"type":"api-request-blob"'
@@ -417,8 +426,14 @@ def line_report(lines: list[str], cap: int | None) -> dict:
             "headroom": None if cap is None else cap - len(lines)}
 
 
-def dead_pointers(lines: list[str], payload: Path | None) -> list[dict]:
-    """Each ~/ path in a code span that resolves nowhere, or whose payload source is gone."""
+def dead_pointers(lines: list[str], payload: Path | None,
+                  denied: list[re.Pattern]) -> list[dict]:
+    """Each ~/ path in a code span that resolves nowhere, or whose payload source is gone.
+
+    The source is masked as drift_report masks its paths: it is absolute, so a
+    config source under the profile folder names the user, and a client
+    checkout's path may name the client.
+    """
     dead = []
     for number, span in code_spans(lines):
         for match in HOME_PATH.finditer(span):
@@ -431,7 +446,8 @@ def dead_pointers(lines: list[str], payload: Path | None) -> list[dict]:
             source_exists = None if source is None else source.exists()
             if not deployed or source_exists is False:
                 dead.append({"line": number, "path": path, "deployed": deployed,
-                             "source": None if source is None else str(source),
+                             "source": None if source is None
+                             else mask_label(str(source), denied),
                              "source_exists": source_exists})
     return dead
 
@@ -642,7 +658,7 @@ def check(args: argparse.Namespace, find_session: ModuleType) -> int:
         "source": mask_label(str(source), denied),
         "payload": mask_label(str(payload), denied) if payload else None,
         "lines": line_report(lines, max_lines(payload)),
-        "dead_pointers": dead_pointers(lines, payload),
+        "dead_pointers": dead_pointers(lines, payload, denied),
         "skills": skill_report(lines, payload, own),
         "tools": tool_report(text),
         "dated": dated_lines(lines, date.today()),
@@ -715,11 +731,12 @@ def entrypoint_of(line: str) -> str:
 def command_segments(command_line: str) -> list[str] | None:
     """The command line split at unquoted ; & | and newlines, or None when it runs a substitution.
 
-    A $( or a backtick may run any program, so the line is then real, never
-    printed. Quotes are tracked so `grep "a && b" f` is one segment; a stray
-    one only makes the line read as real, the count the script had before.
+    A $(, a backtick or a process substitution, <( or >(, may run any
+    program, so the line is then real, never printed. Quotes are tracked so
+    `grep "a && b" f` is one segment; a stray one only makes the line read
+    as real, the count the script had before.
     """
-    if "$(" in command_line or "`" in command_line:
+    if any(mark in command_line for mark in ("$(", "`", "<(", ">(")):
         return None
     segments: list[str] = []
     current: list[str] = []
@@ -747,9 +764,14 @@ def git_subcommand(words: list[str]) -> str:
     return words[at] if at < len(words) else ""
 
 
-def only_prints_files(command_line: str) -> bool:
-    """Whether a command line only prints files: every segment a printer or a directory change.
+def only_prints_files(command_line: str, tool: str = "Bash") -> bool:
+    """Whether a command line only prints files: every segment a printer or one printing no file.
 
+    A segment printing no file moves the directory, echoes its own words,
+    assigns a variable, as `f=x && sed -n 1p "$f"` does, or opens a for
+    loop's word list or closes it; a loop body's `do` is dropped to reach
+    its program. Through the PowerShell tool an assignment word or a
+    BASH_ONLY program is a failed command, so the line is real.
     At least one segment must print, so `cd x` alone does not, and a chain
     holding any other program, `make && cat x`, does not either.
     """
@@ -758,10 +780,22 @@ def only_prints_files(command_line: str) -> bool:
         return False
     printing = False
     for segment in segments:
-        # Leading VAR=value words are not the program.
-        words = [word for word in segment.casefold().split() if not re.fullmatch(r"\w+=\S*", word)]
+        all_words = segment.casefold().split()
+        # Leading VAR=value words are not Bash's program, so a segment of nothing else runs none.
+        words = [word for word in all_words if not re.fullmatch(r"\w+=\S*", word)]
+        if tool == "PowerShell" and (len(words) < len(all_words)
+                                     or (words and words[0] in BASH_ONLY)):
+            return False
+        if words[:1] == ["do"]:
+            words = words[1:]
         head = words[0] if words else ""
-        if head in PRINTERS:
+        if not words or head in NEUTRAL:
+            continue
+        if head == "for":
+            # `for f in a b` runs nothing, a $( or <( refused above; `for ((` is arithmetic.
+            if len(words) < 3 or words[2] != "in" or not re.fullmatch(r"\w+", words[1]):
+                return False
+        elif head in PRINTERS:
             printing = True
         elif head == "sed":
             flags = words[1:]
@@ -774,7 +808,11 @@ def only_prints_files(command_line: str) -> bool:
             if git_subcommand(words) not in GIT_PRINTERS:
                 return False
             printing = True
-        elif head not in NEUTRAL:
+        elif head == "gh":
+            if len(words) < 3 or words[2] not in GH_PRINTERS:
+                return False
+            printing = True
+        else:
             return False
     return printing
 
@@ -823,8 +861,9 @@ def shell_signature_hits(line: str, folded: list[str], commands: dict[str, tuple
             fields = block.get("input") if isinstance(block.get("input"), dict) else {}
             command_line = fields.get("command")
             command_line = command_line if isinstance(command_line, str) else ""
-            commands[str(block.get("id"))] = (str(block.get("name")), command_line,
-                                              only_prints_files(command_line))
+            tool = str(block.get("name"))
+            commands[str(block.get("id"))] = (tool, command_line,
+                                              only_prints_files(command_line, tool))
         elif block.get("type") == "tool_result" and str(block.get("tool_use_id")) in commands:
             tool, command_line, prints = commands[str(block.get("tool_use_id"))]
             flagged = block.get("is_error") is True

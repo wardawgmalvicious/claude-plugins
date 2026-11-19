@@ -2,7 +2,7 @@
 
 Plain markdown, about a screen before the table, in this order. The
 headings are fixed: a `user-instructions` row in
-`file-audit-findings`' `references/other-audits.md` would recognize the
+`file-audit-findings`' table of other audits would recognize the
 report by `## Session evidence` and `## Proposed moves`, take its head
 from the `## Sources` line, and its actions from
 `## Recommended actions`. Leave a heading out only where this file says
