@@ -103,6 +103,14 @@ Non-literal expressions:
 | `PBI_CV_<GUID>` | varies (custom visuals) |
 | `deneb<GUID>` | dataset |
 
+`cardVisual` also has a **Trend axis** well (preview, November 2026, by
+Learn's
+[November 2026 What's new](https://learn.microsoft.com/power-bi/fundamentals/whats-new),
+read 2026-11-18) that adds a trend chart to each card. Its role's name is
+unconfirmed: Learn's card page never names the well, and a theme schema
+names formatting, not query roles. Read it from a saved `visual.json`
+before authoring.
+
 ### Projection Properties
 
 | Property | Notes |
@@ -279,6 +287,18 @@ property for the Date picker's **Anchor** or **Offset**. Learn puts the
 Dropdown section on the Dropdown style alone, and Hierarchy and Selection
 icon on Dropdown and Vertical list.
 
+A new slicer takes its style from its column: **Vertical list**
+(`'VerticalList'`) for text, **Between** (`'Between'`) for numbers and
+**Date picker** (`'RelativeDatePicker'`) for dates, by Learn's
+[slicer visual](https://learn.microsoft.com/power-bi/visuals/power-bi-visualization-slicer-visual)
+page (read 2026-11-18). Date picker became the dates' default in
+November 2026, GA by that month's feature summary; Learn's
+[numeric or date range slicer](https://learn.microsoft.com/power-bi/create-reports/desktop-slicer-numeric-range)
+page still gives a date field Between. What a `visual.json` with no
+`data.mode` renders is untested here, so write it whenever the style
+matters. Date picker slicers don't filter other Date picker slicers, even
+when visual interactions are set to filter.
+
 #### Donut chart (`donutChart`)
 
 **Center value** is `centerValue.show`, a boolean. Its format is in four
@@ -328,8 +348,8 @@ Settings and status are the monthly feature summaries'.
 | Slider colors for the handles, selected range and track | `slider.handleFillColor`, `handleBorderColor`, `color`, `secondaryLineColor` | `slicer` | fill |
 | Slider handle size | `slider.handleSize`, `handleWidth`, `handleHeight`, new in 2.158 | `slicer` | number |
 | Axis Layout > Initial scroll position (GA, September) | `categoryAxis.initialScrollPosition` | every bar, column, line, area, combo, ribbon, scatter and waterfall type | `'start'` or `'end'` |
-| List slicer dropdown mode (preview, October) | `data.dropdownMode`, new in 2.159 | `listSlicer` | boolean |
-| Show selected first (preview, October) | `selectedOnly.show`, new in 2.159 | `listSlicer`, `advancedSlicerVisual` | boolean |
+| List slicer dropdown mode (preview October, GA November) | `data.dropdownMode`, new in 2.159 | `listSlicer` | boolean |
+| Show selected first (preview October, GA November) | `selectedOnly.show`, new in 2.159 | `listSlicer`, `advancedSlicerVisual` | boolean |
 | Plot area fill color (GA, October) | `plotArea.color`, `colorTransparency`, new in 2.159 | every bar, column, line, area, combo, ribbon, scatter and waterfall type | fill, number |
 | Hierarchy axis Auto expand (GA, October) | `categoryAxis.autoExpand`, new in 2.159 | the same, less scatter and waterfall | boolean |
 
@@ -352,6 +372,60 @@ category levels.
 
 Sources, read 2026-10-22: the theme schema above, diffed against 2.157
 and 2.158, and the September and October 2026 feature summaries.
+
+### November 2026 formatting properties
+
+The November 2026 release's settings below are named only where theme
+schema 2.159 names them: it was still the newest in
+[`Report Theme JSON Schema`](https://github.com/microsoft/powerbi-desktop-samples/tree/main/Report%20Theme%20JSON%20Schema)
+on 2026-11-18, so a setting it lacks is unmapped until a newer schema or
+an export shows it. Names carry the August section's caveat. Status is
+Learn's
+[November 2026 What's new](https://learn.microsoft.com/power-bi/fundamentals/whats-new).
+The slicer's November changes, the dates' default style and a theme's
+`mode`, are under § August 2026 formatting properties > Slicer and in
+[themes.md](themes.md).
+
+The **list slicer**'s dropdown mode, show selected first and multi-line
+selection box went GA. Learn's
+[list slicer](https://learn.microsoft.com/power-bi/visuals/power-bi-visualization-list-slicer)
+page lets selection pills wrap by turning off **Selection box** >
+**Layout** > **Single line**. 2.159's `selectionBox` has no property for
+it, so it is unmapped.
+
+**Action buttons** (preview) add a **Filter** button to a table or
+matrix, turned on under **General** > **Action buttons**; the button
+counts the visual's active filters, leaving out page, report and slicer
+filters. 2.159 adds `actionButtonSection`, titled Action buttons, to
+`commonCards`, the container objects every visual shares, so it
+presumably goes in `visualContainerObjects`, beside `title`.
+
+| Format pane | Property | Carried by | Type |
+| --- | --- | --- | --- |
+| Action buttons | `actionButtonSection.show`, presumably | `tableEx`, `pivotTable` | boolean |
+| Position | `actionButtonSection.position` | `tableEx`, `pivotTable` | `'withinTitle'`, `'aboveTitle'` or `'belowTitle'` |
+
+The schema puts the object on every visual; Learn allows it on table and
+matrix alone. Learn's **Position** > **Horizontal alignment**, left or
+right, has no clear property: 2.159's one Horizontal alignment,
+`textHorizontalAlignment`, takes `'left'`, `'center'` or `'right'` and
+sits among the button-text properties. The rest of the object's 60
+properties style the padding, background, icon, text, fill, border,
+shadow and glow, the sections Learn lists.
+
+**Gantt** (preview) gained **Columns** > **Totals** and **Rows** >
+**Data labels**. 2.159's `ganttChart` has no object for either, its
+objects being `axis`, `axisTick`, `bar`, `columnHeaders`, `columnPanel`,
+`columnValue`, `columnWidth`, `general`, `milestone`, `progress` and
+`row`, so both are unmapped.
+
+Sources, read 2026-11-18: theme schema 2.159, and Learn's What's new
+above and its
+[list slicer](https://learn.microsoft.com/power-bi/visuals/power-bi-visualization-list-slicer),
+[action buttons](https://learn.microsoft.com/power-bi/visuals/power-bi-visualizations-action-buttons)
+and
+[Gantt](https://learn.microsoft.com/power-bi/visuals/power-bi-visualization-gantt)
+pages.
 
 ### Reference
 

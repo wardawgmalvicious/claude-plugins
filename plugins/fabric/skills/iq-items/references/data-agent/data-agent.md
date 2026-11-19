@@ -125,7 +125,16 @@ The positive-form counterpart — the authoring loop, regression question banks,
 Restating the caps from above: **read-only**, **5 data sources** per agent, **100 example queries** per source, **none on semantic model sources**. Beyond those:
 
 - **Structured data only**: no `.pdf`, `.docx`, `.txt`. For lakehouse sources, only tables are queried — standalone files under `Files/` are not read unless exposed as tables.
-- **Response row/column cap**: agent responses are capped at 25 rows and 25 columns to keep chat output concise. Previous chat history can influence the cap on follow-ups — start a new chat if you need a clean context. What's New announces a 1,000-row preview, but its link lands on the visuals page and the concept page still says 25: treat 1,000 as unconfirmed (2026-10-06).
+- **Response row/column cap**: the preview runtime returns up to 1,000
+  rows from a query, "up from 25", in the improvements Learn's
+  [data agent runtime](https://learn.microsoft.com/en-us/fabric/data-science/data-agent-runtime)
+  page lists, saying nothing of columns. The standard runtime keeps
+  the 25 rows and 25 columns the concept page caps responses at, to keep
+  chat output concise, a page that names no runtime (both read
+  2026-11-18). The November 2026 Feature Summary puts the 1,000 rows on
+  the standard runtime instead, as a preview: no Learn page says so, so
+  plan on 25 there. Previous chat history can influence the cap on
+  follow-ups — start a new chat if you need a clean context.
 - **Visuals** (GA): answers come with charts by default, steered or switched off through agent instructions. A chart takes at most **200 rows** (the rest are truncated), its styling is fixed, and it renders only in Fabric's own data agent experience — not the SDK, M365 Copilot, Teams or Foundry.
 - **English only**: no current non-English language support.
 - **LLM is fixed**: you can't change the underlying LLM. The runtime selector (standard or preview) changes the orchestration and query-generation tools, not the model: model upgrades land on both runtimes alike.

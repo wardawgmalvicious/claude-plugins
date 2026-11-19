@@ -194,9 +194,8 @@ has no lookahead, so comma grouping is hand-rolled either way. Numeric
 axes (bar/column y-columns) must stay numeric — put the unit in the tile
 title and column name
 (`['Order Value ($)']`) instead. Related KQL pitfalls: `round()` returns
-`real`, and `toint()` nulls on decimal strings. The user's
-`coding-kql.md` rule, where their config holds one, has more; with none,
-these two are the whole of it here.
+`real`, and `toint()` nulls on decimal strings. General KQL style is
+not covered here, so these two are the whole of it.
 
 ## Auto refresh
 
@@ -238,7 +237,8 @@ Replace with file** for immediate feedback. Test tile queries before shipping
 by composing them exactly as the dashboard does: prepend
 `let <variableName> = (<base query text>);` for each entry in
 `usedVariables`, then run against the database. Serialization is CRLF with
-**no final newline** (JSON item part) — see `rules/fabric-git-serialization.md`.
+**no final newline** (JSON item part) — see `data-items`,
+`references/git-serialization.md`.
 
 **A portal save rewrites more than the tiles it touched.** On a dashboard
 made by REST, one save reset the item's description to its display name,

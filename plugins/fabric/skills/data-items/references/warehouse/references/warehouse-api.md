@@ -11,7 +11,7 @@ Operations. The SQL analytics endpoint is
 | | |
 | --- | --- |
 | REST `type` | `Warehouse`, under `/workspaces/{ws}/warehouses/{id}` |
-| Git folder | `<display name>.Warehouse/`, a DacFx SQL project (`.sqlproj` and object scripts; the `fabric-git-serialization` rule owns the portal's byte behaviour) |
+| Git folder | `<display name>.Warehouse/`, a DacFx SQL project (`.sqlproj` and object scripts; the portal's byte behaviour is [git-serialization.md](../../git-serialization.md)'s) |
 | Learn definition | [Warehouse definition](https://learn.microsoft.com/rest/api/fabric/articles/item-management/definitions/warehouse-definition) (ms.date 2026-03-09, updated 2026-10-28, read 2026-11-14): formats `dacpac` and `sqlproj`, the default; this URL returned nothing on 2026-10-20 |
 | Spec folder | [`warehouse/`](https://github.com/microsoft/fabric-rest-api-specs/tree/main/warehouse): `swagger.json`, `definitions.json`, `examples/` |
 | Spec read | `a96c37a`, 2026-10-20 (folder last changed `fdaf257`, 2026-10-13): 17 operations, 12 beyond the generic five |

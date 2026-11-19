@@ -3,10 +3,10 @@
 A **review procedure over a finished model** — stand back from it and
 report on what it is, not on the line you are typing. Everything else
 that touches a semantic model is authoring guidance:
-[tmdl.md](../tmdl.md) and, where the user's config holds one, their
-`coding-tmdl.md` rule own conventions, with tmdl.md alone where it does
-not; [definition-api.md](definition-api.md) owns deployment, `review-code`
-reviews a diff. This owns the corpus.
+[tmdl.md](../tmdl.md) owns conventions;
+[definition-api.md](definition-api.md) owns deployment, `review-code`,
+or the bundled `/code-review` where `review-code` is absent, reviews a diff.
+This owns the corpus.
 
 The output is a set of **findings**, not a rewrite. Do not edit the model
 unless asked separately.

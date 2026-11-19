@@ -84,6 +84,10 @@ class FabricNotebookCredential(TokenCredential):
 
 The identity needs Contributor+ on the target workspace (Admin for `enable_hard_delete`). SPNs additionally need the tenant setting *Service principals can call Fabric public APIs*, as the admin portal titles it (older Learn pages: *can use Fabric APIs*) — same prerequisites as any Fabric REST automation (see `rest-api`'s `references/auth.md`).
 
+A service principal also needs Read on the Variable Library's
+connections (`variable-library` § Gotchas), and becomes the run
+identity of every pipeline it publishes (`deploy` § 5 Verify).
+
 ## parameter.yml
 
 Environment-specific value substitution applied to file contents at publish time, keyed by the `environment` passed to `FabricWorkspace`. Lives at the repository-directory root.
@@ -269,6 +273,8 @@ Full YAML: [example/release_pipeline](https://microsoft.github.io/fabric-cicd/la
 | Selective run wanted despite full-deploy model | `get_changed_items()` + `items_to_include`, or accept full deploys (the design intent) |
 | `Cannot find the KQL Database source with name '<name>' as it is not yet deployed.`, the database deployed | The dashboard data source's `name` is not the database's display name: [Item-type caveats](#item-type-caveats-the-ones-that-bite), Real-Time Dashboard |
 | `Semantic model not found in the repository. Cannot deploy a report with a relative path without deploying the model.`, the model in scope | On Windows, an 8.3 short `repository_directory`: the report's `byPath` is `resolve()`d to the long form and compared by exact `Path` equality with paths walked from the short one (1.4.0 source; reproduced 2026-10-16). Pass the long path, `cygpath -lw` in Git Bash or `Path(dir).resolve()` before constructing `FabricWorkspace`. Linux runners have no short names |
+| A Variable Library, first in the publish, fails `InvalidValueOrTypeMismatch` / `ReferencedEntityNotFoundOrAccessDenied` | The identity lacks Read on a connection its active value set names: `variable-library` § Gotchas |
+| `Failed to publish DataAgent '<name>': ... Message: The feature is not available.`, creating it as a service principal on a workspace with capacity | Cause unknown: a person had made the same agent on that capacity, and the organization-wide Copilot setting was on (observed 2026-11-18, 1.4.0). To publish the rest, leave `DataAgent` out of `item_types_in_scope`; the agent then exists only where a person made it |
 
 ## Reference
 

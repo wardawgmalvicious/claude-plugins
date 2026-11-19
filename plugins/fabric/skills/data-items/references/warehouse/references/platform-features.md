@@ -101,7 +101,7 @@ never checks. Each of these runs fine interactively and fails only there:
 - **Unqualified column where an object references two or more tables in another warehouse** — the build cannot bind it even when only one of those tables has the column. Alias-qualify every column in cross-warehouse statements.
 - **Same schema name spelled with different capitalisation** across cross-warehouse references, on a **case-insensitive** collation only — the build emits one `CREATE SCHEMA` per spelling. Fabric's default `Latin1_General_100_BIN2_UTF8` is case-sensitive and unaffected; check `<ModelCollation>` in the `.sqlproj` (`CI` = affected).
 - **`SQL71501 ... [dbo].[V].[Col] or [dbo].[V].[alias]::[Col]`** — the `::` candidate marks a known product bug in validation, not a real ambiguity, and aliasing does not clear it. First rule out a genuinely missing object elsewhere in the same run; then, in order: replace `SELECT *` in CTEs and derived tables with explicit column lists, split the view so each ambiguous source is its own view, stop joining `OPENROWSET(BULK ...)` to another dynamically shaped source in one statement.
-- **Uppercase built-in type name** (`SYSNAME`) — see `coding-tsql` *Casing*.
+- **Uppercase built-in type name** (`SYSNAME`) — under a case-sensitive collation the build resolves it as a missing user-defined type; write `sysname`.
 - **Changing a column that has `IDENTITY`** — commit/update fails until `IDENTITY_INSERT` is enabled for the table.
 - **Stale `.sqlproj` SDK pin** — see `rest-api`'s `references/gotchas.md`, the `MSB4019` row.
 - **Cyclic references between warehouse items** — fail branch-out and Git→workspace sync.

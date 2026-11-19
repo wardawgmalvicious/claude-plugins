@@ -41,7 +41,7 @@ per-source notes: [references/source-connectors.md](references/source-connectors
 |---|---|---|
 | **Database CDC** | Azure SQL, SQL MI, SQL Server on VM, PostgreSQL, MySQL, MongoDB, Cosmos DB | Azure SQL needs `sys.sp_cdc_enable_db`; you cannot enable Mirroring **and** Eventstream CDC on the same database; MongoDB (GA September 2026) has no Git integration or deployment-pipeline support |
 | **Mirrored DB Delta CDF** | Mirrored Database (preview, April 2026) | Row-level CDC off a Mirrored DB's Delta Change Data Feed — opt in per database. What's New calls it GA (September 2026), but Learn's source list still says preview (2026-10-06), so it stays preview here |
-| **Native Azure** | Event Hubs, IoT Hub | Auth is **Shared Access Key**; workspace-identity auth is preview (Aug 2026) and the UI leads the docs |
+| **Native Azure** | Event Hubs, IoT Hub | Auth is **Shared Access Key**; workspace-identity auth is preview (Aug 2026) and the UI leads the docs. A hub to use without a copy takes a **shortcut** instead (below) |
 | **Kafka protocol** | Apache Kafka, Amazon MSK, Confluent Cloud | GA June 2026. Custom CA / mTLS GA July 2026, under **TLS/mTLS settings** — MQTT has the same block |
 | **Other cloud / broker** | Kinesis, Service Bus, Google Pub/Sub, Solace PubSub+, Cribl, SAP Datasphere | Service Bus GA June 2026; Solace PubSub+, Cribl and SAP Datasphere GA September 2026. Cribl has no Git integration or deployment-pipeline support |
 | **Protocol / pull** | MQTT, HTTP (preview), Azure Data Explorer, Real-time weather | MQTT is GA (August 2026) with its own TLS/mTLS settings, though Learn's source list still labels it preview (2026-10-06). HTTP ships predefined public feeds for testing |
@@ -52,6 +52,21 @@ into a tabular shape mirroring the source table, plus an `Op` column, automatic
 destination-table creation, and schema evolution. Available on **Azure SQL / SQL
 MI / SQL Server on VM / PostgreSQL CDC** only; every other CDC source hands you
 raw Debezium envelopes to flatten yourself.
+
+**An Azure Event Hubs shortcut** (preview) makes a customer-owned event
+hub the eventstream's **default stream**, with no copy into Eventstreams,
+the hub staying the Azure owner's to manage. It is a separate experience
+from the Event Hubs source, which ingests the hub's events, and replaces
+it in nothing: to connect a hub someone already runs without copying it,
+start from Real-Time hub's **Add data** or a new eventstream's canvas, by
+**Create a shortcut to an Event hub**, never the **Azure Event Hubs**
+tile. It carries data only once **Active**, after an approver with the
+Azure approve action accepts it, unless the requester holds **Azure
+Event Hubs Data Owner**; the namespace must allow public network access,
+and while it exists the eventstream takes **no other source** (Learn,
+read 2026-11-18). Approval, topology, limits and removal:
+[references/source-connectors.md](references/source-connectors.md)
+§ "Azure Event Hubs shortcuts (preview)".
 
 Sources behind a firewall need [Eventstream connector VNet
 injection](https://learn.microsoft.com/fabric/real-time-intelligence/event-streams/streaming-connector-private-network-support-guide).
@@ -241,6 +256,8 @@ when verified.
 | Mirrored DB CDC source rejected | Can't enable Mirroring AND Eventstream CDC on same DB | Pick one — the docs explicitly call this out |
 | New Activator rule doesn't fire | Eventstream wasn't republished after adding the destination | Republish the Eventstream after wiring the destination |
 | Connector behind firewall fails | Source not publicly reachable | Use [Eventstream connector VNet injection](https://learn.microsoft.com/fabric/real-time-intelligence/event-streams/streaming-connector-private-network-support-guide) |
+| An Event Hubs shortcut reads **Request shortcut: Successful** but carries nothing | Successful is the request's submission; the shortcut stays **Pending** until an approver accepts it (Learn, 2026-11-18) | Have an Azure approver accept it on the event hub's **Shortcut to Fabric (preview)** blade, then confirm **Active**: [references/source-connectors.md](references/source-connectors.md) § "Azure Event Hubs shortcuts (preview)" |
+| An eventstream won't take another source | It has an Event Hubs shortcut, and one with a shortcut takes no other source while it exists (Learn, 2026-11-18) | Put the other source in its own eventstream |
 | DeltaFlow not available on a CDC source | Currently scoped to Azure SQL / SQL MI / SQL Server VM / PostgreSQL CDC | Use raw mode for other CDC sources and flatten Debezium yourself |
 | Events pushed to a schema-associated custom endpoint are dropped | Wrong CloudEvents envelope, `dataschema` version, or per-environment registry host | See [references/cloudevents-producer.md](references/cloudevents-producer.md) — four distinct failure modes |
 | A schema-aware eventstream's Data preview lists events as untyped though they carry `ce-type` | Over the Event Hubs protocol it reads `cloudEvents:type` or `ce_type`, not Learn's `ce-type` (measured 2026-11-17) | Send `cloudEvents:*` application properties: [references/schema-aware.md](references/schema-aware.md) § 3 |

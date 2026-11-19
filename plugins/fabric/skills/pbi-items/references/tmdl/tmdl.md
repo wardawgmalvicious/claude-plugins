@@ -269,6 +269,11 @@ model Model
   alternative needing one rule instead of two) and build the URL from them — concatenation works
   (`AzureStorage.DataLake("https://onelake.dfs.fabric.microsoft.com/" & WorkspaceId & "/" & LakehouseId, ...)`)
   — then rebind each target stage with **parameter rules** (verified live 2026-08-24).
+  Several connections can share one workspace parameter, each with its own item-ID
+  parameter. In a composite model the Text parameters can be created in Power Query
+  instead, but the Direct Lake connection expression is not available there: edit it
+  in TMDL view. Deploy the model to the target stage first if it isn't there yet, so
+  the rules can be set (the Develop Direct Lake page, read 2026-11-18).
 
 
 ---

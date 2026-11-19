@@ -13,13 +13,20 @@ It applies **wherever the model is consumed by Copilot** — Power BI reports, Q
 Who reaches the model through Copilot is a model setting of its own, on
 by default: *Allow any person with only read permissions to use AI (for
 example, Copilot, Microsoft's MCP tools) on this model and its related
-reports*. It covers the report pane, standalone Copilot and apps, M365
-Copilot Chat and Cowork, data agents and Microsoft's remote MCP tools.
+reports*. It covers the report pane, standalone Copilot and app-scoped
+Copilot in workspace apps, M365 Copilot Chat and Cowork, data agents and
+Microsoft's remote MCP tools.
 Turned off, an experience spanning several models also drops the model
 and its reports from search for every user, and a model built on
 another doesn't inherit it
 ([Use Copilot with semantic models](https://learn.microsoft.com/power-bi/create-reports/copilot-semantic-models),
-read 2026-10-08).
+read 2026-10-08). App-scoped Copilot in workspace apps is retiring:
+Learn says so without a date
+([Copilot in Power BI apps](https://learn.microsoft.com/power-bi/create-reports/copilot-apps-overview),
+read 2026-11-18), and the November 2026 feature summary says the
+experience and the app setup setting that enables it are removed in
+January 2027. Copilot within a report, one opened in a workspace app
+included, is not affected.
 
 ### Reaching the model from Microsoft 365 Copilot Chat
 

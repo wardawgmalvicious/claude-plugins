@@ -487,7 +487,7 @@ set, checked the same day.
 `how-to-view-entity-type-details`.
 
 Drill `how-to-use-ontology-agent` first: [ontology.md](ontology.md)
-leans on the agent for multi-model generation, refresh and authoring,
+leans on the agent for multi-model generation, schema review and authoring,
 without its own page.
 Then `how-to-use-rules` and `how-to-use-metrics`: §1 says how rules and
 metrics serialize, and nothing here says how they behave.

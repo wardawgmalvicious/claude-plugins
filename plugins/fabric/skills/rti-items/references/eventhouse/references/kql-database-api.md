@@ -10,7 +10,7 @@ Operations; the query endpoint is
 | | |
 | --- | --- |
 | REST `type` | `KQLDatabase`, under `/workspaces/{ws}/kqlDatabases/{id}` |
-| Git folder | `<display name>.KQLDatabase/`, or nested as `<eventhouse>.Eventhouse/.children/<display name>.KQLDatabase/` (the `fabric-git-serialization` rule) |
+| Git folder | `<display name>.KQLDatabase/`, or nested as `<eventhouse>.Eventhouse/.children/<display name>.KQLDatabase/` with its own `.platform`, where Learn's Eventhouse Git page shows the two side by side: read the path from the repo (observed 2026-09-16, client Git history; which Eventhouses nest is unknown) |
 | Learn definition | [KQL Database definition](https://learn.microsoft.com/rest/api/fabric/articles/item-management/definitions/kql-database-definition) |
 | Spec folder | [`kqlDatabase/`](https://github.com/microsoft/fabric-rest-api-specs/tree/main/kqlDatabase): `swagger.json`, `definitions.json`, `examples/` |
 | Spec read | `a96c37a`, 2026-10-20: 11 operations |
@@ -38,8 +38,12 @@ Under Git integration the supported commands are a closed list: table
 *create-or-alter*; table update policy and column encoding policy
 *alter*. **No drop and no rename appear anywhere in it**, so Git →
 portal is additive-only and a subtraction cannot be represented at all.
-The branching consequences, and the recreate-as-empty-tables corollary
-after a live rename, are in the `fabric-git-serialization` rule.
+Make additive schema changes by Git sync and drops and renames live.
+Because sync executes `.create-merge`, a branch still carrying those
+lines for a table renamed away live recreates it as an empty table on
+the next sync: update the file after a live rename. Portal commits from
+a sandbox workspace can also shrink the file to that sandbox's tables:
+`data-items`, `references/git-serialization.md` § 2.
 
 ## Creating one
 
