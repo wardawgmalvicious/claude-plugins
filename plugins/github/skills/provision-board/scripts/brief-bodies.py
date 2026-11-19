@@ -82,15 +82,28 @@ caller that puts that line in the question asking to file.
 
 Usage:
     brief-bodies.py <repo-root> <out-dir> --blob <url> [--status open,deferred] [--allow-no-denylist]
-    brief-bodies.py <repo-root> <out-dir> --blob <url> --brief <path> [--brief <path> ...]
+    brief-bodies.py <repo-root> <out-dir> --blob <url> --brief <path> [--brief <path> ...] [--require-work]
 
 --blob is the URL a repo path is appended to, such as
 https://github.com/<owner>/<repo>/blob/main/. --status picks the briefs
-filed, both by default.
+filed, both by default. --require-work, which file-issue passes for the
+issues it files, fails a brief with no file missing work-model or
+work-effort, as "<brief>: no work-model"; a brief file stands as pushed,
+and without the flag either key may be blank, as a queue written before
+2026-11-17 has them.
+
+TRACKING PARENTS. `tracking: true` marks a brief with no file as a
+tracking parent, which no session works whole, so it takes neither Work
+key (the user, 2026-11-17): --require-work passes it blank, and a Work
+key on it fails, flag or none, as "<brief>: a tracking parent takes no
+work-model". Any other tracking value fails, never printed, as a draft
+read as no parent would take the keys it was never meant to.
 
 Exit 0 written and clean, exempt, or with no denylist under
 --allow-no-denylist, 1 a denylisted term in a title or body, a
-work-model or work-effort outside the board's options, a platform not
+work-model or work-effort outside the board's options, missing under
+--require-work or set on a tracking parent, a tracking value other than
+true, a platform not
 lowercase kebab, an issue, parent or
 blocked-by that names no issue or brief, or a --brief that
 cannot be filed as it stands, 2 a usage error or no denylist to check
@@ -225,6 +238,8 @@ def main() -> int:
     parser.add_argument("--brief", type=Path, action="append", default=[])
     parser.add_argument("--allow-no-denylist", action="store_true",
                         help="with no denylist terms, count nothing and exit 0 on a denylist: line")
+    parser.add_argument("--require-work", action="store_true",
+                        help="fail a brief with no file missing work-model or work-effort")
     args = parser.parse_args()
 
     wanted = set(parse_list(args.status))
@@ -370,8 +385,23 @@ def main() -> int:
         work = {key: meta.get(key, "").strip() for key in WORK}
         # These name the key or the position, never the value, by the rule
         # above: the count has not read it yet.
+        tracking = meta.get("tracking", "").strip()
+        if "tracking" in meta and tracking != "true":
+            print(f"error: {brief.name}: tracking takes true alone", file=sys.stderr)
+            invalid += 1
+        # A tracking parent takes neither key, so a blank on one is the
+        # convention, never a key left unweighed.
+        tracking_parent = tracking == "true" and no_file
         for key, value in work.items():
-            if value and value not in WORK[key]:
+            if value and tracking_parent:
+                print(f"error: {brief.name}: a tracking parent takes no {key}", file=sys.stderr)
+                invalid += 1
+            # A brief file stands as pushed, so only a draft with no file,
+            # which file-issue writes, must name both keys.
+            elif not value and args.require_work and no_file and not tracking_parent:
+                print(f"error: {brief.name}: no {key}", file=sys.stderr)
+                invalid += 1
+            elif value and value not in WORK[key]:
                 print(
                     f"error: {brief.name}: {key} is none of {', '.join(WORK[key])}",
                     file=sys.stderr,
@@ -460,8 +490,8 @@ def main() -> int:
     print(f"{len(rows)} briefs to {manifest}; longest body {longest} chars")
     if invalid:
         print(
-            f"error: {invalid} work-model, work-effort or platform values "
-            "outside the board's options or shape",
+            f"error: {invalid} work-model, work-effort, tracking or platform values "
+            "missing, set on a tracking parent, or outside the board's options or shape",
             file=sys.stderr,
         )
     if unfiled:

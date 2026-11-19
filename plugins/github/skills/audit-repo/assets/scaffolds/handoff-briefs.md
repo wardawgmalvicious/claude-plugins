@@ -26,8 +26,8 @@ fails a commit on a bad value, a brief with no frontmatter, or a
 | `blocked-by` | a list of brief filenames in `execute/`, bare: `[a.md, b.md]` |
 | `reopen-when` | the trigger; required when `deferred` |
 | `written` | `YYYY-MM-DD` |
-| `work-model` | optional: `haiku`, `sonnet`, `opus` or `fable` |
-| `work-effort` | optional: `low`, `medium`, `high`, `xhigh` or `max` |
+| `work-model` | `haiku`, `sonnet`, `opus` or `fable`; required in a new brief, by `file-issue`'s table |
+| `work-effort` | `low`, `medium`, `high`, `xhigh` or `max`; required in a new brief, by `file-issue`'s table |
 | `platform` | optional list, each lowercase kebab, as `power-bi`: its `platform:*` label, made at filing where the repo lacks it |
 
 Each is `key: value` or `key: [a, b]`; YAML misreads a value opening with
@@ -40,9 +40,9 @@ a quote or backtick, or holding a colon before a space or `#` after one.
   them. A decision lands as yes, no or defer; a defer keeps the brief,
   `deferred` with its `reopen-when`.
 - **A brief's worktree lands from the main checkout, with no push**:
-  rebase its branch on `main`, lint what it changed with
-  `pre-commit run --from-ref main --to-ref HEAD` in the worktree,
-  `git merge --ff-only` the branch from the main checkout,
+  rebase its branch on the default branch, `<default>`, lint what it
+  changed with `pre-commit run --from-ref <default> --to-ref HEAD` in
+  the worktree, `git merge --ff-only` the branch from the main checkout,
   then remove the worktree and delete its branch. The user pushes.
   `lead-sessions` lands by this line, and stops in a repo that has none.
 - **Landing deletes the brief** in the commit that finishes its work:

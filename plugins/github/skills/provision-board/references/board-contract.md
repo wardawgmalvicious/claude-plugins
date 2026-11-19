@@ -347,8 +347,7 @@ tracking issue, 2026-10-29).
   for work, and flags one whose sub-issues are all closed to close.
 - **A Deferred parent reads Open once it gains an open sub-issue**:
   `file-issue` and `group-issues` reopen it, comment first, as they link
-  the child (`file-issue`'s `references/reconcile.md` § "Reopening a
-  Deferred parent"). A sub-issue linked by hand on GitHub leaves it
+  the child. A sub-issue linked by hand on GitHub leaves it
   Deferred, for `update-issue` with `<n> reopen` (2026-11-05).
 - **GitHub's limits**: up to 100 sub-issues per parent, and eight levels
   of nesting. An issue has one parent. A view can group by Parent issue

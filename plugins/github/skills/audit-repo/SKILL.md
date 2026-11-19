@@ -214,7 +214,9 @@ compare.
 
 **Hardening warns under either policy**: an action pinned by tag, the
 server's SHA-pin rule off, secret scanning or push protection off, a
-deploy key that can write, a bypass on any active ruleset, a
+deploy key that can write, an environment any branch can deploy to,
+whose `fix:` names `provision-deploy-identity` for its branch policy and
+the credential that trusts it, a bypass on any active ruleset, a
 code-owner rule that keeps an approval across a new push, and, on a
 public repo, a pre-commit config that no workflow runs. **Secret
 scanning on a private or internal organization repo is a spend**, as its

@@ -28,7 +28,7 @@
 # 4.7.0, PyPI's latest on 2026-11-03. Every `uses:` is pinned to a full
 # commit SHA, its tag kept as a comment. Reproduced green, with an shfmt
 # step this template leaves out and pre-commit unpinned, so 4.7.0, on a
-# pull request and on the push to main in a personal repo, 2026-11-02.
+# pull request and on the push to main, 2026-11-02.
 name: pre-commit
 
 on:
