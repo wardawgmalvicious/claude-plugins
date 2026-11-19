@@ -125,8 +125,8 @@ if ! command -v jq >/dev/null 2>&1; then
     DATA=${CLAUDE_PLUGIN_DATA:-}
     DATA=${DATA//\\//}
     if [[ -n $DATA ]]; then
-        for f in "${DATA%/}"/../toolchain-*/bin/jq.exe "${DATA%/}"/../toolchain-*/bin/jq; do
-            [[ -x $f ]] && JQ=$f && break
+        for candidate in "${DATA%/}"/../toolchain-*/bin/jq.exe "${DATA%/}"/../toolchain-*/bin/jq; do
+            [[ -x $candidate ]] && JQ=$candidate && break
         done
     fi
     [[ -n $JQ ]] || unchecked "jq is not on PATH, nor in the toolchain plugin's data folder"

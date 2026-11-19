@@ -344,8 +344,8 @@ are pipeline-shaped and bite after promotion:
   with User on the connection already (observed 2026-11-18), Learn
   documenting no roles on a reference, though its ⋯ menu offered User;
   and, for code reading secrets as the run identity, such as
-  `notebookutils.credentials.getSecret`, a vault data role (`azure-core`'s
-  `access`; inferred, not seen failing). Which identity a scheduled run
+  `notebookutils.credentials.getSecret`, a data role on the vault itself
+  (inferred, not seen failing). Which identity a scheduled run
   takes is unmeasured: Learn gives a scheduled notebook its schedule's
   creator or last updater, and a publish without `.schedules` keeps the
   schedule's owner (`deploy`'s `references/fabric-cicd.md`, *Item-type

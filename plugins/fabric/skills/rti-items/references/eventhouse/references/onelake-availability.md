@@ -31,12 +31,21 @@ Fabric's Python-notebook readers, `deltalake` and Polars, lack it
 Learn's Eventhouse pages don't say a drop sets it, and whether Fabric
 Spark reads a copy Kusto mapped is untested. Where a reader without
 column mapping reads the copy, through a shortcut too, rebuild the table
-rather than drop in place: read its row count, `.drop table`, which
-deletes the copy, `.create table` without the column, turn availability
-back on, run `.clear table T cache streamingingestion schema` where
-streaming ingestion feeds it, and re-ingest the history (not run end to
-end here). `iq-items`' `references/ontology.md`, *No delta column
-mapping*, is the same hazard from the reader's side.
+rather than drop in place, and **keep the rows first: a row count keeps
+none of them.** Copy them without the column,
+`.set T_hold <| T | project-away Col`, check `T_hold`'s count against
+`T`'s, and stop for the user's yes before `.drop table`, which deletes
+the copy. Then `.create table` without the column, its columns in
+`T_hold`'s order, since ingest from query matches columns by position,
+not name; turn availability back on; run
+`.clear table T cache streamingingestion schema` where streaming
+ingestion feeds it; `.append T <| T_hold`; check the count again; and
+only then drop `T_hold` (not run end to end here). Learn advises
+`with (distributed=true)` past 1 GB and each ingest under 1 GB, split
+across commands; `async` returns at once, its result in
+`.show operations` (Learn, *Ingest from query*, read 2026-11-19).
+`iq-items`' `references/ontology.md`, *No delta column mapping*, is the
+same hazard from the reader's side.
 
 **Turn availability off with the portal toggle or
 `.alter-merge table T policy mirroring with (IsEnabled=false)` — never

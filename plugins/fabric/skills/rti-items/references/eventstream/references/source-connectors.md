@@ -63,9 +63,9 @@ Git or a deployment pipeline, is undocumented and untested.
 | A requester approved at once | **Azure Event Hubs Data Owner**, or effective permissions covering data read and both actions: the request approves itself at creation |
 
 Azure **Reader** is not enough: a control-plane role, it grants no Event
-Hubs data read. The approver works in the Azure portal: the event hub's **Shortcut to Fabric
-(preview)** > **Event Hub shortcuts**, then the row's **Approve** or
-**Reject**.
+Hubs data read. The approver works in the Azure portal: the event hub's
+**Shortcut to Fabric (preview)** > **Event Hub shortcuts**, then the
+row's **Approve** or **Reject**.
 
 **Request shortcut: Successful means submitted, not approved.** The
 statuses are **Pending**, **Active** and **Error** alone, with no
