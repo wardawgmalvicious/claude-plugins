@@ -1,0 +1,16 @@
+{
+  "name": "toolchain",
+  "description": "The command-line tools the other plugins' skills and hooks run: fetches pinned, checksum-verified jq and uv into its own data folder when they are missing, puts that folder on the Bash tool's PATH, and checks that gh is installed and signed in. Other plugins list it as a dependency; see its README.",
+  "author": {
+    "name": "wardawgmalvicious"
+  },
+  "keywords": ["claude-code", "jq", "uv", "gh"],
+  "userConfig": {
+    "fetch": {
+      "type": "boolean",
+      "title": "Fetch missing tools",
+      "description": "Download jq and uv when they are not on PATH. Off: name the install line instead.",
+      "default": true
+    }
+  }
+}

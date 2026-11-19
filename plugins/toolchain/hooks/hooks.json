@@ -1,0 +1,16 @@
+{
+  "description": "Fetches pinned jq and uv into the plugin's data folder when either is missing, puts that folder on the Bash tool's PATH, and checks gh; see hooks/toolchain.sh's header.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/toolchain.sh\"",
+            "timeout": 120
+          }
+        ]
+      }
+    ]
+  }
+}
