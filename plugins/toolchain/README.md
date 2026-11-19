@@ -9,7 +9,10 @@ fetches and prints nothing.
 
 You rarely install it by name. A plugin that needs it, such as `git` or
 `fabric`, lists it in `dependencies`, and Claude Code installs it with
-that plugin. To install it alone:
+that plugin from the marketplace. **A plugin you turn on from claude.ai
+needs `toolchain` turned on there too**, or installed from the
+marketplace (Claude Code docs, plugins/dependencies, read 2026-11-18).
+To install it alone:
 
 ```bash
 claude plugin install toolchain@<marketplace>
@@ -35,8 +38,8 @@ names its install line, or `gh auth login`. `pwsh` is not checked.
 
 ## Where it saves them
 
-In the plugin's own data folder,
-`~/.claude/plugins/data/toolchain-<marketplace>/bin/`, which Claude Code
+In the plugin's own data folder, `${CLAUDE_PLUGIN_DATA}/bin/`: under
+`~/.claude`, `plugins/data/toolchain-<marketplace>/bin/`, which Claude Code
 keeps across plugin updates and **deletes when you uninstall the
 plugin**. Nothing is written anywhere else, and nothing is added to your
 shell's `PATH` outside Claude Code. Uninstalling a plugin that pulled
@@ -86,17 +89,31 @@ line. An unset option counts as on.
 
 ## For a plugin that needs these tools
 
-List it in `dependencies`, in `plugin.json` or the marketplace entry:
+List it in `dependencies`, in `plugin.json` or the marketplace entry,
+naming its marketplace:
 
 ```json
-"dependencies": ["toolchain"]
+"dependencies": [
+  { "name": "toolchain", "marketplace": "wardawgmalvicious" }
+]
 ```
 
-A bare name resolves in your plugin's own marketplace, so that
-marketplace must list `toolchain` too, or name its home in
-`allowCrossMarketplaceDependenciesOn` (Claude Code docs,
-plugins/dependencies, read 2026-11-18). A skill's commands then find
-the tools on `PATH`. A hook does not: look for the tool on `PATH`, then
+**Name the marketplace even when it is your plugin's own.** A plugin
+turned on from claude.ai loads as `<name>@synced`, with no marketplace,
+and Claude Code counts its dependency as met by a claude.ai plugin of
+the same name only when the entry names a marketplace. A bare
+`"toolchain"` names none: it resolves in the declaring plugin's own
+marketplace, which a synced plugin lacks (Claude Code docs,
+plugins/dependencies, read 2026-11-18). From a marketplace install, the
+bare name, `"toolchain@<marketplace>"` and the form above each
+installed `toolchain` with `fabric` (a throwaway config, 2.1.327,
+2026-11-18). A plugin in another marketplace also needs that
+marketplace's `marketplace.json` to list `wardawgmalvicious` in
+`allowCrossMarketplaceDependenciesOn`, unless `toolchain` is already
+installed and enabled at the same scope.
+
+A skill's commands then find the tools on `PATH`. A hook does not: look
+for the tool on `PATH`, then
 in `<your data folder>/../toolchain-*/bin/`, and run it there by its
 full path, as the `fabric` plugin's
 [edit gate](../fabric/hooks/fabric-edit-gate.sh) does. A `C:/` path

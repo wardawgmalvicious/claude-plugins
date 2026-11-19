@@ -9,8 +9,8 @@
 # that version is downloaded for this platform, its SHA-256 checked against
 # tools.lock, run once with --version, and saved there. gh is checked, never
 # fetched: on PATH, and signed in by `gh auth token`, which reads gh's own
-# store and calls no API. pwsh is not checked: only github-admin's
-# audit-repo needs it, and that skill says so itself.
+# store and calls no API. pwsh is not checked: a skill that needs it says
+# so itself.
 #
 # HOW THE TOOLS ARE FOUND. When it used the data folder, it appends the
 # folder to PATH through CLAUDE_ENV_FILE, which reaches the Bash tool's
@@ -50,7 +50,7 @@
 # in PowerShell, where `sh` is not found: a `hook error` notice each
 # session, and nothing fetched.
 #
-# Test seam: TOOLCHAIN_LOCK names another lock file (tests/hooks/toolchain/).
+# Test seam: TOOLCHAIN_LOCK names another lock file.
 
 if [ -z "${BASH_VERSION:-}" ]; then
     command -v bash >/dev/null 2>&1 && exec bash "$0" "$@"
@@ -79,7 +79,7 @@ esac
 EXE=
 [[ $OS == windows ]] && EXE=.exe
 
-# C:\Users\x or C:/Users/x -> /c/Users/x, for Git Bash's PATH; a POSIX path
+# C:\Work\x or C:/Work/x -> /c/Work/x, for Git Bash's PATH; a POSIX path
 # passes unchanged. Windows only reaches the ${,,} expansion, which bash 3.2
 # would refuse.
 to_posix() {
@@ -153,6 +153,13 @@ download() { # <url> <dest>
         curl -fsSL --proto '=https' --proto-redir '=https' --retry 2 --retry-max-time 10 \
             --connect-timeout 10 --max-time "$left" -o "$2" "$1"
     elif command -v wget >/dev/null 2>&1; then
+        # wget's --timeout bounds each stalled read, not the download, so
+        # timeout holds it to the deadline; 126 or 127, timeout would not
+        # run, retries it bare.
+        local rc=0
+        timeout "$left" wget -q --https-only --tries=1 --timeout=20 -O "$2" "$1" || rc=$?
+        [[ $rc -eq 124 ]] && return 28
+        [[ $rc -eq 126 || $rc -eq 127 ]] || return "$rc"
         wget -q --https-only --tries=1 --timeout=20 -O "$2" "$1"
     else
         return 127
@@ -183,7 +190,7 @@ unpacked() {
 
 # fetch <tool>: sets WHY on failure.
 fetch() {
-    local tool=$1 tmp file got name src rc
+    local tool=$1 tmp file got name src rc kept=0
     WHY=
     if ! lock_row "$tool"; then
         WHY="no pinned build for $OS-$ARCH"
@@ -234,14 +241,20 @@ fetch() {
         [[ -n $WHY ]] && break
         src=$(unpacked "$tmp" "$name$EXE")
         # A rename within the data folder: the binary appears whole or not
-        # at all. On Windows a copy another session is running cannot be
-        # replaced, and that copy is the same version, so it stands.
-        mv -f "$src" "$BIN/$name$EXE" 2>/dev/null || [[ -f $BIN/$name$EXE ]] ||
-            WHY="cannot write $BIN/$name$EXE"
+        # at all. A move that fails, on a permission or an antivirus lock,
+        # keeps the copy already there, which may be an older version, so
+        # no version stamp is written and the next session fetches again.
+        if ! mv -f "$src" "$BIN/$name$EXE" 2>/dev/null; then
+            if [[ -f $BIN/$name$EXE ]]; then
+                kept=1
+            else
+                WHY="cannot write $BIN/$name$EXE"
+            fi
+        fi
     done
     rm -rf "$tmp"
     [[ -z $WHY ]] || return 1
-    printf '%s\n' "$VERSION" >"$BIN/.$tool.version" 2>/dev/null
+    ((kept)) || printf '%s\n' "$VERSION" >"$BIN/.$tool.version" 2>/dev/null
     return 0
 }
 
