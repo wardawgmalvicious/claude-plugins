@@ -33,6 +33,7 @@ fetches the latest.
 | `fabric` | Microsoft Fabric and Power BI items, the REST API and `fab` CLI, deployment, security and governance; an agent and a hook load an item's skill before it is edited | Claude Code | `/plugin install fabric@wardawgmalvicious` |
 | `git` | Logical commits, code review, landing a branch through a pull request, pruning branches | Claude Code | `/plugin install git@wardawgmalvicious` |
 | `github` | Auditing a repo's settings and community files, a Projects board for issues, recreating a repo after a pushed leak | Claude Code | `/plugin install github@wardawgmalvicious` |
+| `github-issues` | A repository's backlog as issues on a GitHub Projects board: filing an issue as a brief, moving its card, working it from the claim to the branch landed; it needs a board from `github`'s `provision-board` | Claude Code | `/plugin install github-issues@wardawgmalvicious` |
 | `meta` | Claude Code itself: agent setup audits, finding past sessions, user-scope `CLAUDE.md`, session cost, instruction placement, shipping plugins | Claude Code | `/plugin install meta@wardawgmalvicious` |
 | `essentials` | Your claude.ai Instructions for Claude block and a Project's instructions | claude.ai chat, Cowork, Claude Code | `/plugin install essentials@wardawgmalvicious` |
 | `admin` | A claude.ai organization's Organization instructions, for its Owners | claude.ai chat, Cowork, Claude Code | `/plugin install admin@wardawgmalvicious` |

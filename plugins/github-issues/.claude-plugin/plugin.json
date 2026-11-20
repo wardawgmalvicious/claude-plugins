@@ -1,0 +1,13 @@
+{
+  "name": "github-issues",
+  "description": "A repository's backlog as issues on a GitHub Projects board, each a brief for one session, for Claude Code: file an issue with its card's fields, labels and links on one yes, defer, reopen or reprioritize a card, and work an issue from the claim to the branch landed.",
+  "author": {
+    "name": "wardawgmalvicious",
+    "url": "https://github.com/wardawgmalvicious"
+  },
+  "homepage": "https://github.com/wardawgmalvicious/claude-plugins",
+  "repository": "https://github.com/wardawgmalvicious/claude-plugins",
+  "license": "MIT",
+  "keywords": ["claude-code", "github", "issues", "github-projects"],
+  "dependencies": [{ "marketplace": "wardawgmalvicious", "name": "toolchain" }]
+}
