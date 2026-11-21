@@ -125,13 +125,12 @@ title goes only with the repo.
   repo hits on its own name: point `IDENTITY_DENYLIST` at a copy
   without that term.
 
-## `claude-plugins`, read before its flip
+## A plugin marketplace's repo, read before its flip
 
-**`wardawgmalvicious/claude-plugins` is the public marketplace's repo,
-made public on 2026-11-17 once its first export was validated and
-scanned**. Read
-2026-11-17 at `8907587`, after the first release's export merged, as
-`wardawgmalvicious`; the same day at `5f22d00`, an empty marketplace,
+**A plugin marketplace's repo was made public on 2026-11-17, once its
+first plugins were validated and scanned**. Read
+2026-11-17 at `8907587`, after its first release merged, as
+its owner; the same day at `5f22d00`, an empty marketplace,
 both gave the same counts.
 
 - **`going-public.ps1`: 0 `[HIT]`, 1 `[WARN]`**, 6 workflow runs whose

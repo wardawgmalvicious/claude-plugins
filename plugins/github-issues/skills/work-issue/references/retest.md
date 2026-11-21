@@ -11,9 +11,9 @@ It runs after prep, from the worktree, **only where the repo holds both
 the stamp script and the skill the child runs**, as this one does: the
 script alone would offer a retest whose child stops on an unknown
 `test-skill` command. Where either is missing, the gate offers no
-retest and the report names none owed. `<stamp-script>` is
-`skill-status.py` by the path the repo's instructions run it at, as
-root `CLAUDE.md` § "Commands" does here; with none, no retest is owed.
+retest and the report names none owed. `<stamp-script>` is the script
+`<stale-check>` runs, by the path the repo's instructions give it;
+with none, no retest is owed.
 
 ```bash
 test -f <stamp-script> && test -f .claude/skills/test-skill/SKILL.md   # exit 1: no retest here
@@ -24,7 +24,7 @@ uv run --with pyyaml <stamp-script> --stale --base <default> --json   # rows: sk
 or `smoke`. `--base` rates each row's own change from the merge base,
 by the rules in the script's docstring: a row `main` left stale reads
 `none` unless the branch really edited it, and one whose change only
-swaps old skill names for new, by `skill-telemetry.py`'s `RENAMED`,
+swaps old skill names for new, by the `RENAMED` map it reads,
 or old group names for the ones the range moved their skills into,
 reads `smoke`, `test-skill`'s smoke test in place of a full retest.
 **A rename lists its old names in `RENAMED` first**, or each renamed

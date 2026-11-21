@@ -76,7 +76,7 @@ and restore" has the retention default and the restore limits Learn gives.
 ## REST beyond the generic set
 
 Under `https://api.fabric.microsoft.com/v1/workspaces/{ws}/sqlDatabases/{id}/`
-unless the path tail is absolute. The table is `spec-ops.py`'s,
+unless the path tail is absolute. The table is the spec's,
 at the SHA above, with *On Learn* filled from Learn's
 *Items*, *Mirroring* and, for audit, the *SQL Audit Settings* group and
 its article (read 2026-10-20), and *Measured* from this skill's files,

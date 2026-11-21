@@ -117,7 +117,7 @@ principal / managed identity**.
 
 Learn's *Items* group lists exactly the seven operations above (read
 2026-10-20). The spec holds one more, tagged *Activations*. The table is
-`spec-ops.py`'s, at spec SHA `a96c37a`, 2026-10-20,
+the spec's, at spec SHA `a96c37a`, 2026-10-20,
 with *On Learn* and *Measured* filled in.
 
 | Method | Path tail | Does | Body | Flags | On Learn | Measured |

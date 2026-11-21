@@ -86,8 +86,7 @@ git fetch origin && git merge --ff-only origin/<default>         # after it
 ```
 
 **The machine runs none of it until then**, nor a deployed skill or
-`claude/` payload until `link-claude.ps1` runs, as root `CLAUDE.md`
-§ "Commands" has it.
+payload until the repo's deploy line, `<deploy>`, runs.
 
 ## What stays out of reach
 

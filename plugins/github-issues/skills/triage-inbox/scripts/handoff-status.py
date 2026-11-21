@@ -552,9 +552,9 @@ class RepoReport:
 def find_repos(roots: list[pathlib.Path]) -> list[pathlib.Path]:
     """Return each root that is a repo, else repos up to two levels below it.
 
-    Two levels because repos here sit under a grouping directory
-    (<root>/<group>/<repo>), and --sweep in payload-coverage.py, which
-    goes one level, would find none of them from the root.
+    Two levels because repos often sit under a grouping directory
+    (<root>/<group>/<repo>), where a sweep one level deep would find
+    none of them from the root.
     """
     found: list[pathlib.Path] = []
     for root in roots:

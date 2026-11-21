@@ -7,8 +7,9 @@ one file for both, with `<name>` the skill, `<verdict>` its row's verdict, `<gro
 `dir`'s group, `<command>` `test-skill`'s slash command, a `/` and
 its name, as the repo's `.claude/skills/` holds it, and `<dir>` the
 child's own scratchpad, the folder made before the launch below, by its full
-path in long form, and `<default>` the default branch
-[preflight.md](preflight.md) read. Write the filled
+path in long form, `<default>` the default branch
+[preflight.md](preflight.md) read, and `<stamp-script>` the stamp
+script [retest.md](retest.md) names. Write the filled
 text to `<scratchpad>/<name>.prompt` with Write and pass it **on
 stdin**. It opens with the slash command so the typed-only `test-skill`
 expands; the rest arrives with it as the command's arguments.
@@ -17,14 +18,14 @@ expands; the rest arrives with it as the command's arguments.
 <command> <name>
 
 Another session started you from its worktree, the directory you
-are in, to retest <name>, which skill-status.py
+are in, to retest <name>, which <stamp-script>
 rates <verdict>. Nobody can answer a permission prompt or a question,
 and the run ends when you stop.
 
 Test the skill as it is in this worktree. Your scratchpad is <dir>,
 an empty folder made for you, since your environment names none. Write
 probe directories and arm output under it, and pass
-test-activation.ps1 a -ProbeRoot under it, since other sessions run
+test-skill's activation script a -ProbeRoot under it, since others run
 beside you. Run each shell command as a plain one of its own, not
 chained to another by && or ;, and give a command that needs a folder
 its full path in place of cd or a variable set on an earlier line.
@@ -66,14 +67,14 @@ beginning "Another session started you"; a row with no `owed`, as a
 backlog retest's, takes none:
 
 ```text
-skill-status.py --stale --base <default> rates this branch's change to
+<stamp-script> --stale --base <default> rates this branch's change to
 <name> rename-only, owed smoke: run test-skill's smoke test, step 8,
 in place of the full retest.
 ```
 
 For a skill in a standing group, one the repo deploys at user scope,
-as root `CLAUDE.md` § "Branching and concurrent sessions" lists them
-here, add one paragraph after the same one, and after the smoke
+as its instructions list them, add one paragraph after the same
+one, and after the smoke
 paragraph where there is one:
 
 ```text
@@ -91,10 +92,10 @@ worktree of its own, keeps that one:
 ```text
 Other children may be retesting other skills in this worktree beside
 you, and they share its index, so stage, stamp and commit nothing, whatever
-test-skill's steps say: run neither skill-status.py --stamp nor
+test-skill's steps say: run neither <stamp-script> --stamp nor
 commit-changes. Write in this worktree only under tests/skills/<name>/
 and leave it uncommitted. If the retest passed, give on the NOTES line
-the exact skill-status.py --stamp command for <name>, naming only the
+the exact <stamp-script> --stamp command for <name>, naming only the
 phases that ran, each path you wrote under tests/skills/<name>/, and
 anything test-skill would have written elsewhere.
 ```
@@ -155,7 +156,7 @@ claude -p -n "test-skill: <name>" --permission-mode auto --permission-prompts no
 - **"a -ProbeRoot under it"**: the script's default probe is
   `$env:TEMP/claude-activation-probe-<set>`, one per set, and its
   `finally` tears the probe down, so two testers on one set would delete
-  each other's (the repo's `test-activation.ps1`, `test-skill` step 6).
+  each other's (the repo's activation script, `test-skill` step 6).
 - **"delete those folders by the paths the eval printed"**: each kept
   run is a `claude-eval-<random>` folder that nothing else removes soon
   (`clean-temp.ps1` waits 14 days, and its weekly task was not

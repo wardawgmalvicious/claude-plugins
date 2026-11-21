@@ -98,7 +98,7 @@ alone (spec, read 2026-10-20).
 ## REST beyond the generic set
 
 Under `https://api.fabric.microsoft.com/v1/workspaces/{ws}/semanticModels/{id}/`.
-The table is `spec-ops.py`'s, at the SHA above, with
+The table is the spec's, at the SHA above, with
 *On Learn* and *Measured* filled in.
 
 | Method | Path tail | Does | Body | Flags | On Learn | Measured |

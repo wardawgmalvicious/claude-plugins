@@ -8,5 +8,6 @@
   "homepage": "https://github.com/wardawgmalvicious/claude-plugins",
   "repository": "https://github.com/wardawgmalvicious/claude-plugins",
   "license": "MIT",
-  "keywords": ["claude-code", "github", "repository-settings", "github-projects"]
+  "keywords": ["claude-code", "github", "repository-settings", "github-projects"],
+  "dependencies": [{ "marketplace": "wardawgmalvicious", "name": "toolchain" }]
 }

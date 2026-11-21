@@ -339,8 +339,9 @@ nothing is invoked. **To work a filed item now, a desktop session
 offers a side session for it** by
 [side-session.md](references/side-session.md), never one briefed to
 run these steps by hand, which runs without the skill's pins and, in a
-worktree the app made, without its preflight. A retest `skill-status.py --stale` names is no open
-item, since its stamp tracks it: the report names it. **After a
+worktree the app made, without its preflight. A retest the repo's
+stale-skill check names is no open item, since its stamp tracks it:
+the report names it. **After a
 hand-off this session files them**, from the worktree, on the lead's
 `landed` and before asking the user to close the session: the lead
 files nothing of a worker's. **A cloud session reports them in full
