@@ -38,9 +38,9 @@
                 linked project's own visibility, which the switch leaves.
 
     THE DENYLIST is ~/.config/identity-denylist.txt, or IDENTITY_DENYLIST,
-    parsed by lines kept equal to export-skills.ps1's, so there is one
-    list and one reading of it: this script's suite fails when the
-    two differ. No term is printed, since the list is itself the leak, nor
+    parsed as the list's other readers parse it, so there is one list
+    and one reading of it: this script's suite fails when they
+    differ. No term is printed, since the list is itself the leak, nor
     any text holding one: a tag, a title or an address holding one prints
     as a placeholder, and any other line holding one, such as a failed
     call's error, is withheld whole. A missing denylist, or one with no
@@ -271,8 +271,8 @@ $terms = @()
 $wordTerms = @()
 $script:NoList = $null
 if (Test-Path -LiteralPath $listPath -PathType Leaf) {
-    # Kept equal to export-skills.ps1's parse, line for line, which says why
-    # each line is as it is; this script's suite fails when the two differ.
+    # Kept equal, line for line, to the parse of the list's other readers;
+    # this script's suite fails when they differ.
     $listLines = @(Get-Content -LiteralPath $listPath | ForEach-Object { $_.Trim() } |
             Where-Object { $_ -and -not $_.StartsWith('#') -and -not $_.ToLowerInvariant().StartsWith('exempt:') })
     $terms = @($listLines | Where-Object { -not $_.ToLowerInvariant().StartsWith('word:') })
@@ -283,8 +283,8 @@ if (Test-Path -LiteralPath $listPath -PathType Leaf) {
 } else {
     $script:NoList = "no readable identity denylist at $listPath"
 }
-# One pattern for every term, plain ones as literal text, word: ones as
-# export-skills.ps1 bounds them, so each line costs one match.
+# One pattern for every term, plain ones as literal text, word: ones where
+# no ASCII letter or digit touches them, so each line costs one match.
 $anyTerm = $null
 if (-not $script:NoList) {
     $termPattern = @(@($terms | ForEach-Object { [regex]::Escape($_) }) + @($wordTerms | ForEach-Object { $_.ToString() })) -join '|'

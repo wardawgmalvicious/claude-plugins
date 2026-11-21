@@ -482,7 +482,7 @@ if ($Policy -eq 'releases') {
 # and returned it with every status on a public one (2026-10-30), so an
 # absent block is context and only a disabled status warns. Under
 # -AsPublic an absent block warns per key instead: GitHub turns neither on
-# at the switch, so claude-plugins read both disabled right after its flip,
+# at the switch, so a marketplace repo read both disabled right after its flip,
 # and an [INFO] put neither in the checklist the owner works through
 # (2026-11-17).
 Step 'Secret scanning'

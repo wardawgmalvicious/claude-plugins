@@ -77,7 +77,7 @@ on any github.com page in the chosen browser, by `javascript_tool`:
 document.querySelector('meta[name="user-login"]')?.content
 ```
 
-It read `wardawgmalvicious` on a project page, matching `gh api user`
+It read the user's own login on a project page, matching `gh api user`
 (2026-10-27).
 
 - **The same login**: go on.
