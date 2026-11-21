@@ -31,7 +31,13 @@ happen only when explicitly requested, never as follow-through.
    bound for `land-branch`: a pull-request rule on `main`
    (`land-branch` step 7 has the two reads), or `(#<n>)` and
    `Merge pull request` subjects in the log above; a fast-forward
-   landing leaves none. A repo's own
+   landing leaves none. Bound for it, cut the branch from the remote's
+   tip: `git fetch origin`, and where `git status --short --branch` then
+   reads `[behind <n>]` alone,
+   `git switch --no-track -c <branch> origin/<default>`; a clean tree
+   says nothing of `origin`, and a refusal, `Your local changes … would
+   be overwritten`, names a file edited stale
+   (observed 2026-11-20, git 2.55.0). A repo's own
    committed convention wins, in its `CONTRIBUTING.md` or agent
    instructions: one that commits straight to `main` answers *no*, and
    then you commit where you stand. Say which way you went. In a

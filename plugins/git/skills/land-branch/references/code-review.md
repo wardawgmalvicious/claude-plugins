@@ -45,6 +45,28 @@ for this head, in a repo that runs one: [§ "After fix commits: `@claude
 review`"](#after-fix-commits-claude-review). Anything else after 50 is
 no verdict.
 
+**Where the session's own instructions forbid polling CI**, as the
+Claude desktop app's do, naming `gh` polling and saying Auto-fix sends
+an event when something needs attention (reported: a desktop session's
+inbox note, 2026-11-20), run no loop: end the turn saying the merge
+waits for the review, and take the app's event or the user's next
+message as the wake (the user's call, 2026-11-20). Auto-fix
+addresses new review comments a GitHub App leaves, and fixes failing
+checks (`desktop#monitor-pull-request-status`, read 2026-11-20); where
+it is off, it is the user's to turn on, native probe first, by
+[the app's PR tools](gh-wrapper-reach.md#the-claude-desktop-apps-pr-tools),
+and with it on, a finding its event relays is still step 6's stop,
+never a fix pushed before the user's answer.
+On the wake, read the head's status once, by the loop's `gh api` call
+alone, as its last pass would take it: `completed` is read below; `none`
+5 minutes or more after the head's push is the `none` case above;
+anything else ends the turn again, and is no verdict 25 minutes after
+the push. With Auto-fix and its comment relay on, a review's summary
+and its inline comment arrived as one event that woke a session, about
+4.5 minutes after the review began (observed 2026-11-20, 2.1.328).
+Whether a review with no finding sends one, or any comes with Auto-fix
+off, is unchecked: the user's message is the wake then.
+
 ## Reading the result
 
 ```bash
