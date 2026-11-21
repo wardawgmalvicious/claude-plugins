@@ -35,6 +35,9 @@ for Linux, macOS and Windows on x86_64 and arm64.
 
 `gh` is never fetched: it needs you to sign in, so the plugin only
 names its install line, or `gh auth login`. `pwsh` is not checked.
+Nor is `az` here: `git` and `guards` depend on this plugin too and never
+call it, so the `fabric` plugin, whose skills do, checks it with a
+session-start hook of its own (2026-11-20).
 
 ## Where it saves them
 
