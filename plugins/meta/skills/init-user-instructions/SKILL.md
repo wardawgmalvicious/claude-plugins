@@ -14,8 +14,8 @@ when_to_use: "Use when asked to audit, tighten, trim, rebuild, rewrite or create
 `~/.claude/CLAUDE.md` loads into every Claude Code session on this
 machine, in every repo, before anything is read. Its source is
 `claude/CLAUDE.md` in the config source, the repo the user's config is
-authored in, copied by its `link-claude.ps1`, and its
-`lint-claude-md.py` caps it at `MAX_LINES`, the one place the number
+authored in, copied by its deploy script, and the config source's
+script that sets `MAX_LINES` caps it, the one place the number
 lives. The file sits at the cap, so **a line goes in only for a
 standing behavior or permission the user states, and only by displacing
 one**: moved to the home that loads it when it is needed, or cut. No cap
@@ -35,9 +35,8 @@ skill **proposes**; nothing changes before the user approves a row.
 git rev-parse --show-toplevel
 ```
 
-- **The config source**, the root holding `claude/CLAUDE.md` and the
-  `link-claude.ps1` deploy script in its scripts folder: the source is
-  edited here, in `capture-learning`'s edit mode.
+- **The config source**, the root holding `claude/CLAUDE.md`: the
+  source is edited here, in `capture-learning`'s edit mode.
 - **Anywhere else**: run step 2's `check` first. **Exit 2 on `error: no
   CLAUDE.md at <path>` means the user has no file yet**:
   [references/first-file.md](references/first-file.md) replaces steps 1
@@ -103,8 +102,8 @@ told from any other code span there: read it as unchecked, not clean.
 Each check is a line in the report, a clean one included,
 since a missing line reads as a check not run:
 
-- **lines**: the count, the cap read from `lint-claude-md.py`, the
-  headroom. "cap unread" is not a pass.
+- **lines**: the count, the cap read from the config source's script
+  that sets `MAX_LINES`, the headroom. "cap unread" is not a pass.
 - **pointers**: each `~/` path in a code span that resolves nowhere, and
   for a `~/.claude/` one, a payload source that is gone.
 - **skills**: each skill named, its tree, and whether it is deployed at
@@ -282,8 +281,9 @@ approves rows, not the table.
 
 - **Edit mode, in the config source**: exactly the approved rows, with
   Edit; a moved line leaves in the same edit, and ledger moves keep their
-  paragraphs whole. Then its `lint-claude-md.py`, by `uv run`, which
-  must pass. Stop there and name `commit-changes` as the next step:
+  paragraphs whole. Then the script that sets `MAX_LINES`, by
+  `uv run`, which must pass. Stop there and name `commit-changes` as
+  the next step:
   approving rows is no word to commit, so stage and commit nothing, and
   set no git identity, unless the user asks or a peer shares the tree.
 - **Note mode, anywhere else**: edit nothing. Where the user keeps a
