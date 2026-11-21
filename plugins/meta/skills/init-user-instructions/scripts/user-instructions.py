@@ -22,9 +22,10 @@ config is authored in, found as the git root of the working directory or
 It reports, a line each:
 
 - the line count against MAX_LINES, read from whichever Python script in
-  the config source's scripts folder sets it, where the number lives
-  alone, so nothing here restates it, and unread where two set it
-  differently;
+  the config source's scripts folder sets it and names CLAUDE.md, where
+  the number lives alone, so nothing here restates it, with that
+  script's name; an unread cap says why: no config source, no such
+  script, two that disagree, or one that would not open;
 - every ~/ path in a code span that resolves nowhere, and for a
   ~/.claude/ one, a payload source that is gone;
 - every skill named in a code span, its tree, and whether it is deployed
@@ -145,6 +146,7 @@ CODE_SPAN = re.compile(r"`([^`\n]+)`")
 HOME_PATH = re.compile(r"~/[^\s`'\"(),;]+")
 SKILL_TOKEN = re.compile(r"/?[a-z0-9][a-z0-9-]*")
 SLASH_TOKEN = re.compile(r"/[a-z][a-z0-9-]*")
+CAP_SETTING = re.compile(rb"^MAX_LINES\s*=\s*(\d+)", re.M)  # bytes: max_lines() says why
 DATE = re.compile(r"\b(20\d\d-\d\d-\d\d)\b")
 VERSION = re.compile(r"\b\d+\.\d+\.\d+\b")  # any release series, not only Claude Code's 2.1
 COUNT = re.compile(
@@ -386,20 +388,53 @@ def payload_root(given: str | None) -> Path | None:
     return root if (root / "claude" / "CLAUDE.md").is_file() else None
 
 
-def max_lines(payload: Path | None) -> int | None:
-    """MAX_LINES as the config source's scripts folder sets it; None where none or two disagree."""
+@dataclass
+class Cap:
+    """The CLAUDE.md cap and the scripts that set it, or why it went unread."""
+
+    value: int | None = None
+    scripts: list[str] = field(default_factory=list)
+    unread: str = ""
+
+
+def max_lines(payload: Path | None) -> Cap:
+    """MAX_LINES as a script in the config source's scripts folder sets it for CLAUDE.md.
+
+    Only a script whose text also names CLAUDE.md counts, so a log trimmer's
+    MAX_LINES never caps the file. Each script is read as bytes: both names
+    are ASCII, which a UTF-8 or cp1252 source holds alike, so none is skipped
+    for its encoding. One that will not open leaves the cap unread, since it
+    may set another value, and every unread cap says which cause left it so.
+    """
     if payload is None:
-        return None
-    values: set[int] = set()
+        return Cap(unread="no config source")
+    setters: dict[str, int] = {}
+    passed_over: list[str] = []
     for script in sorted((payload / "scripts").glob("*.py")):
-        try:
-            text = script.read_text(encoding="utf-8")
-        except (OSError, UnicodeDecodeError):
+        if not script.is_file():
             continue
-        setting = re.search(r"^MAX_LINES\s*=\s*(\d+)", text, re.M)
-        if setting:
-            values.add(int(setting.group(1)))
-    return values.pop() if len(values) == 1 else None
+        try:
+            data = script.read_bytes()
+        except OSError as exc:
+            return Cap(unread=f"{script.name} would not open ({type(exc).__name__}), "
+                              "and may set it")
+        setting = CAP_SETTING.search(data)
+        if not setting:
+            continue
+        if b"CLAUDE.md" in data:
+            setters[script.name] = int(setting.group(1))
+        else:
+            passed_over.append(script.name)
+    values = set(setters.values())
+    if len(values) == 1:
+        return Cap(value=values.pop(), scripts=list(setters))
+    if values:
+        return Cap(unread="the scripts disagree: "
+                   + ", ".join(f"{name} sets {value}" for name, value in setters.items()))
+    unread = "no script in the scripts folder sets MAX_LINES and names CLAUDE.md"
+    if passed_over:
+        unread += f"; passed over, setting it without naming CLAUDE.md: {', '.join(passed_over)}"
+    return Cap(unread=unread)
 
 
 def code_spans(lines: list[str]) -> list[tuple[int, str]]:
@@ -423,11 +458,16 @@ def payload_source(payload: Path, rest: str) -> Path | None:
     return None
 
 
-def line_report(lines: list[str], cap: int | None) -> dict:
-    """The line count against the cap, and the headroom left."""
-    return {"count": len(lines), "cap": cap,
-            "over": cap is not None and len(lines) > cap,
-            "headroom": None if cap is None else cap - len(lines)}
+def line_report(lines: list[str], cap: Cap, denied: list[re.Pattern]) -> dict:
+    """The line count against the cap, its scripts or why it went unread, and the headroom left.
+
+    The scripts' names are masked as paths are: a file name can name a client.
+    """
+    return {"count": len(lines), "cap": cap.value,
+            "cap_scripts": [mask_label(name, denied) for name in cap.scripts],
+            "cap_unread": mask_label(cap.unread, denied) if cap.unread else None,
+            "over": cap.value is not None and len(lines) > cap.value,
+            "headroom": None if cap.value is None else cap.value - len(lines)}
 
 
 def dead_pointers(lines: list[str], payload: Path | None,
@@ -586,9 +626,10 @@ def render_check(report: dict) -> None:
              else "the deployed copy alone; no config source here")
     print(f"source     {report['source']} ({where})")
     counted = report["lines"]
-    cap_text = (f", cap {counted['cap']} (MAX_LINES), headroom {counted['headroom']}"
+    cap_text = (f", cap {counted['cap']} (MAX_LINES in {', '.join(counted['cap_scripts'])}), "
+                f"headroom {counted['headroom']}"
                 if counted["cap"] is not None
-                else ", cap unread: the scripts folder sets no one MAX_LINES")
+                else f", cap unread: {counted['cap_unread']}")
     print(f"lines      {counted['count']}{cap_text}")
     pointers = report["dead_pointers"]
     print(f"pointers   {len(pointers)} resolve nowhere")
@@ -661,7 +702,7 @@ def check(args: argparse.Namespace, find_session: ModuleType) -> int:
     report = {
         "source": mask_label(str(source), denied),
         "payload": mask_label(str(payload), denied) if payload else None,
-        "lines": line_report(lines, max_lines(payload)),
+        "lines": line_report(lines, max_lines(payload), denied),
         "dead_pointers": dead_pointers(lines, payload, denied),
         "skills": skill_report(lines, payload, own),
         "tools": tool_report(text),
