@@ -166,7 +166,7 @@ line of the parent's report, its first line as the child wrote it.
 - **Both in the first turn**: the permit and the effort pin each last
   the turn alone, so a turn begun by the user's typed reply, or any
   later one, runs at the session's level and refuses the call.
-  **An auto-compaction ends the permit too**: the claude-code child's
+  **An auto-compaction ends the permit too**: child A's
   first turn compacted at 267k tokens between the two calls, and its
   call on `file-audit-findings` was refused, so the user typed it
   (2026-11-14). An answer by `AskUserQuestion` returns as a tool result
@@ -211,25 +211,24 @@ line of the parent's report, its first line as the child wrote it.
 ## Measured, and not
 
 **Measured on the first real run**, four children started from an
-Opus 5.5 session at `xhigh` on 2026-11-14 (claude-code, claude-plugins,
-fabric-iq-ontology, skill-creator), each landed through a lead, read
-from their transcripts:
+Opus 5.5 session at `xhigh` on 2026-11-14, one per repo, A to D below,
+each landed through a lead, read from their transcripts:
 
 - **The bare names load both skills in the first turn**: each child
   made a Skill call on `audit-source-drift`, then on
-  `file-audit-findings`, bar the claude-code child, whose call came
+  `file-audit-findings`, bar child A, whose call came
   after an auto-compaction and was refused (§ "Why each choice").
 - **Model and level**: every call ran on Opus 5.5, at `xhigh` until
   `commit-changes`, whose `effort: high` pin held the rest of that turn:
   the child's own prep and mark ran at `high`, 11 or 12 calls a child,
   while each `review-code` fork ran at its own `effort: xhigh` pin.
-- **A ledger conflict** bounced the claude-code child's branch once,
+- **A ledger conflict** bounced child A's branch once,
   and its rebase onto `main` cleared it.
 - **Cost**, Claude Code's own `cost-state` total by
-  `measure-session-cost.py` on each transcript: $10.43 for claude-code,
-  which compacted twice at a 267k peak; $6.19 for claude-plugins,
-  compacted once; $6.33 for fabric-iq-ontology, two `review-code` forks
-  among it; $3.57 for skill-creator; $26.52 in all. Each child's first
+  `measure-session-cost.py` on each transcript: $10.43 for A,
+  which compacted twice at a 267k peak; $6.19 for B,
+  compacted once; $6.33 for C, two `review-code` forks
+  among it; $3.57 for D; $26.52 in all. Each child's first
   call held about 94k tokens of context, and each `review-code` fork
   cost $0.67 to $1.14.
 

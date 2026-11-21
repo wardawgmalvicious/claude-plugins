@@ -41,7 +41,7 @@ git log --oneline <before>..HEAD                                # the landed com
 git worktree remove .claude/worktrees/<slug>; echo "exit=$?"   # once any deployed-payload check passes; 255: the folder is held
 git branch -d worktree-<slug>                                   # refused while git still lists the worktree, so safe after a 255
 [ ! -e .claude/worktrees/<slug> ] || echo "LEFT .claude/worktrees/<slug>"   # anything printed: not removed; exit 0 when clean
-<stale-check>                                                   # the repo's stale-skill check, from its instructions, only where the range changed the repo's retest stamps: the deploy bullet below reads it; `skill-status.py --stale`'s exit 1 is an orphan row alone
+<stale-check>                                                   # the repo's stale-skill check, from its instructions, only where the range changed the repo's retest stamps: the deploy bullet below reads it; read the skills it names, not its exit code, which can flag a stamp with no skill alone
 ```
 
 **Each run goes to the `command-runner` agent**, by the Agent tool,
@@ -75,28 +75,26 @@ what it saves, so the review's reads stay the caller's.
   stopped, for `work-issue` to mend or a lead to bounce.
 - **The tail carries the deploy only where the range changed what the
   repo deploys**: `<deploy>` is the deploy line its instructions give,
-  here root `CLAUDE.md` § "Commands"'s `link-claude.ps1` line, where
-  the range changed `claude/` or a deployed group, with `-Force` for
-  `claude/CLAUDE.md` or `claude/settings.json`, and the agent runs it
-  by the PowerShell tool. **A 1 from the deploy still runs the rest**:
-  `link-claude.ps1` exits 1 on drift it only warns of, a
-  `settings.json` differing without `-Force` or another account's MCP
-  servers off the template, and that stopped 3 of 12 deploying tails
-  before the `grep` and the removal, which their callers then ran
-  themselves (transcripts of 2026-11-06 to 11-11 UTC). The caller
+  with the flags they name for what the range changed, and the agent
+  runs it by the tool whose shell the line is written for. **A 1 from
+  the deploy still runs the rest**: a deploy script can exit 1 on drift
+  it only warns of, and that stopped 3 of 12 deploying tails before
+  the deployed-payload check and the removal, which their callers then
+  ran themselves (transcripts of 2026-11-06 to 11-11 UTC). The caller
   reads the deploy's `WARNING` lines in the report, a real failure among
   them, and reruns it from the main checkout, which the removal leaves
   alone.
 - **`<deploy-check>` follows only a deploy**, and only where the repo's
-  instructions give one, as they give `<deploy>`: here root `CLAUDE.md`
-  § "Commands"'s `grep` for a platform or git skill deployed, kept equal
-  to it but inverted, so that it exits 1 with a name printed, and with
-  none outside the repo's root, which stops the run before the removal:
+  instructions give one, as they give `<deploy>`. A check they say
+  must print nothing goes in inverted, kept equal to theirs inside the
+  braces, so that it exits 1 with a line printed, which stops the run
+  before the removal:
 
   ```bash
-  [ -d skills/fabric ] && ! command ls ~/.claude/skills | grep -xF -f <(command ls -d skills/*/*/ | grep -vE '^skills/(github-admin|github-issues|intake|social|meta|handoff-inbox|machine)/' | cut -d/ -f3)
+  ! { <check>; } | grep .
   ```
 
+  A check that already exits non-zero on a fault goes in as it is.
   Any other check the deployed payload needs follows it, by its own
   command. A repo with no deploy line runs neither, so the tail goes
   from the landed commits to the removal.
@@ -163,11 +161,11 @@ Run these commands in order from <main checkout>, each by the tool named, and re
 - **Cite SHAs only after the rebase**, which rewrites them, each checked
   with `git merge-base --is-ancestor <sha> <default>`, since `git cat-file
   -e` passes on a stale one.
-- **Deploy after the merge**, as root `CLAUDE.md` § "Commands" says,
+- **Deploy after the merge**, as the repo's instructions say,
   then any check that needs the deployed payload and any `test-skill`
   stamp, fixing forward on `main`. **A stamp the branch carried**, from
   [§ "Retesting an edited skill"](retest.md#retesting-an-edited-skill),
-  still holds if `skill-status.py --stale` no longer names its skill; one it
+  still holds if `<stale-check>` no longer names its skill; one it
   names again means `main` changed the skill since the retest, so the
   retest is owed again: say so in the report. The tail's last line
   runs that check, so the caller only reads it: leads ran it themselves

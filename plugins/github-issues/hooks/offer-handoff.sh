@@ -69,7 +69,7 @@
 # and there or where it finds no brief it names the command that lists a
 # board's issues: handoff-status.py, in the triage-inbox skill deployed beside
 # this hook or, run from a plugin, in the plugin's own
-# skills/triage-inbox/scripts/, where the export ships it beside the skills
+# skills/triage-inbox/scripts/, which the plugin ships beside the skills
 # that call it. It names nothing where neither holds it, and never reads the
 # board itself: a SessionStart hook must not wait on the network. A repo with
 # neither the folder nor the rule, or a cwd in no checkout, gets the paragraph
