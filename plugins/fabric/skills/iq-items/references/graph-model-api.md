@@ -104,7 +104,7 @@ unmeasured.
 ## REST beyond the generic set
 
 Under `https://api.fabric.microsoft.com/v1/workspaces/{ws}/graphModels/{id}/`.
-The table is `spec-ops.py`'s, at the SHA above, with
+The table is the spec's, at the SHA above, with
 *On Learn* filled from Learn's *Items* group, which lists nine operations,
 and its *Background Jobs* group, which lists the refresh (both read
 2026-10-20; the GraphModel group index failed to fetch twice that day),

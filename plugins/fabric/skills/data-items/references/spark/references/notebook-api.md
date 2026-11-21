@@ -103,7 +103,7 @@ The notebook-specific `updateDefinition` that `rest-api` § Definition
 APIs names is the typed one of the generic set, at
 `/workspaces/{ws}/notebooks/{id}/updateDefinition`. Learn lists the run
 under *Background Jobs* and the sessions under *Livy Sessions*. The table
-is `spec-ops.py`'s, at the SHA above, with *On Learn*
+is the spec's, at the SHA above, with *On Learn*
 and *Measured* filled in. The Livy listings are measured in
 [spark-monitoring.md](spark-monitoring.md), which also holds what a
 session's fields mean; the logs behind a session are in

@@ -93,7 +93,7 @@ unmeasured.
 
 ## REST beyond the generic set
 
-None. The spec has the generic seven, `spec-ops.py table --all` at the
+None. The spec has only the generic seven at the
 SHA above, with a `hardDelete` query parameter on `DELETE`; Learn's
 *Items* group lists the same (read 2026-10-20).
 

@@ -90,7 +90,7 @@ Under `https://api.fabric.microsoft.com/v1/workspaces/{ws}/eventstreams/{id}/`:
 Learn's *Topology* group, all eleven on Learn (read 2026-10-20). Scope
 `Eventstream.ReadWrite.All` or `Item.ReadWrite.All` on each; user,
 service principal and managed identity all work (the spec's descriptions,
-read 2026-10-20). The table is `spec-ops.py`'s, at
+read 2026-10-20). The table is the spec's, at
 the SHA above, with *On Learn* and *Measured* filled in.
 
 | Method | Path tail | Does | Body | Flags | On Learn | Measured |

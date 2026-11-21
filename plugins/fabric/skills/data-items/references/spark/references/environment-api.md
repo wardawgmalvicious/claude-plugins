@@ -62,7 +62,7 @@ with the marker `--- LOG TRUNCATED AT 50000000 BYTES ---` and the
 header `x-ms-log-truncated` (Learn, read 2026-11-07). Most
 operations exist twice in the spec, once `beta=true` and once `beta=false`,
 and Learn lists both; the table keeps the spec's rows as they are. The
-table is `spec-ops.py`'s, at the SHA above, with *On
+table is the spec's, at the SHA above, with *On
 Learn* and *Measured* filled in. Nothing here is measured.
 
 | Method | Path tail | Does | Body | Flags | On Learn | Measured |

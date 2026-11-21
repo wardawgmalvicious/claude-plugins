@@ -92,7 +92,7 @@ They accept `DataAgent.Read.All` or `DataAgent.ReadWrite.All` besides the
 `Item.*` scopes, users and service principals alike, and list calls page
 by `continuationToken`. Learn's REST reference lists every operation
 here, in its *Items*, *Staging* and *Published* groups (read
-2026-11-09). The table is `spec-ops.py`'s,
+2026-11-09). The table is the spec's,
 at the SHA above, with *On Learn* and *Measured*
 filled in; each operation's `examples/` file holds a request and its
 response.

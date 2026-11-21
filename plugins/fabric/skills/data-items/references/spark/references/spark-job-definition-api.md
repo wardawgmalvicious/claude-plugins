@@ -74,7 +74,7 @@ live.
 
 Under `https://api.fabric.microsoft.com/v1/workspaces/{ws}/sparkJobDefinitions/{id}/`.
 Learn lists the run under *Background Jobs* and the sessions under *Livy
-Sessions*. The table is `spec-ops.py`'s, at the SHA
+Sessions*. The table is the spec's, at the SHA
 above, with *On Learn* and *Measured* filled in. The Livy listings are
 measured in [spark-monitoring.md](spark-monitoring.md); the logs behind a
 session are [spark-monitoring-apis.md](spark-monitoring-apis.md)'s.

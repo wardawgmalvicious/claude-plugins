@@ -80,7 +80,7 @@ one (`event-schema-set.md` §10), so whether it mints is unknown.
 
 ## REST beyond the generic set
 
-None. `spec-ops.py table` printed zero rows past the generic seven at the
+None. The spec holds no operation past the generic seven at the
 SHA above, and Learn's *Event Schema Set Items* group lists the same seven
 (read 2026-10-20): create, delete, get, get definition, list, update, and
 update definition. Four item-specific details, all read, none run:

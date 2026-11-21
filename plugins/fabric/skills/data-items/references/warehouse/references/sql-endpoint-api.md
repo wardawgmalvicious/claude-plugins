@@ -26,7 +26,7 @@ call.
 ## REST beyond the generic set
 
 Under `https://api.fabric.microsoft.com/v1/workspaces/{ws}/sqlEndpoints/{id}/`
-unless the path tail is absolute. The table is `spec-ops.py`'s,
+unless the path tail is absolute. The table is the spec's,
 at the SHA above, with *On Learn* filled from Learn's
 *Items* and *SQL Audit Settings* groups (read 2026-10-20) and *Measured*
 from this skill's files, none of which records one of these calls.

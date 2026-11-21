@@ -211,7 +211,7 @@ portal-bound dataflow's `queryMetadata.json` holds; whether a live
 
 Under `https://api.fabric.microsoft.com/v1/workspaces/{ws}/dataflows/{id}/`,
 bar the two Gen1 upgrade calls, which sit under `/workspaces/{ws}/`. The
-table is `spec-ops.py`'s, at the SHA above, with *On
+table is the spec's, at the SHA above, with *On
 Learn* and *Measured* filled in; each operation's `examples/` file holds a
 request and its response. Learn lists the parameters in its *Items*
 group, the runs and schedules in *Background Jobs*, the upgrade calls in

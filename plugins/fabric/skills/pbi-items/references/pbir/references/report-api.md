@@ -95,7 +95,7 @@ No operation past the generic seven: Create, Delete, Get, List, Update,
 Get Definition and Update Definition, all on Learn's
 [Report *Items* group](https://learn.microsoft.com/rest/api/fabric/report/items)
 (read 2026-10-20), and the spec's 7 are the same. The table
-`spec-ops.py` prints for the folder is empty, so there is none here.
+of operations past them is empty, so there is none here.
 
 Verifying a published report's rendering is not a Fabric REST call: it is
 the Power BI `exportToFile` API, in `pbir.md` Step 12.

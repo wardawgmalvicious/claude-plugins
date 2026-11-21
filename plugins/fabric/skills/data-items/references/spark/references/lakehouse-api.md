@@ -66,7 +66,7 @@ unread. `rest-api` § Definition APIs has what `.platform` holds live.
 
 Under `https://api.fabric.microsoft.com/v1/workspaces/{ws}/lakehouses/{id}/`.
 Learn's groups: *Tables*, *Background Jobs*, *Materialized Lake Views* and
-*Livy Sessions*. The table is `spec-ops.py`'s, at the
+*Livy Sessions*. The table is the spec's, at the
 SHA above, with *On Learn* and *Measured* filled in.
 
 - **The MLV operations** (the `refreshMaterializedLakeViews` jobs and

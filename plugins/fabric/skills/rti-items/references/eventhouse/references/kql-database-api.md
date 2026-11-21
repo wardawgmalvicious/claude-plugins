@@ -76,7 +76,7 @@ does not list; whether `getDefinition` returns it is unmeasured.
 
 Under `https://api.fabric.microsoft.com/v1/workspaces/{ws}/kqlDatabases/{id}/`:
 Learn's *Table Shortcuts* group, a shortcut being a OneLake shortcut
-the database queries as an external table. The table is `spec-ops.py`'s,
+the database queries as an external table. The table is the spec's,
 at the SHA above, with *On Learn* and *Measured*
 filled in.
 

@@ -52,7 +52,7 @@ before trusting a diff against the folder.
 Under `https://api.fabric.microsoft.com/v1/workspaces/{ws}/dataPipelines/{id}/`.
 Learn lists all eight under *Background Jobs* of the DataPipeline group,
 and its *Items* group lists only the generic seven (both read
-2026-10-20). The table is `spec-ops.py`'s, at the SHA
+2026-10-20). The table is the spec's, at the SHA
 above, with *On Learn* and *Measured* filled in. These are the typed
 twin of the generic `jobs/instances?jobType=Pipeline` and
 `jobs/{jobType}/schedules` calls in `rest-api` (§ Job Execution,
