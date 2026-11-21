@@ -21,9 +21,10 @@ config is authored in, found as the git root of the working directory or
 --payload, and else the deployed ~/.claude/CLAUDE.md alone, saying so.
 It reports, a line each:
 
-- the line count against MAX_LINES, read from the config source's
-  lint-claude-md.py, where the number lives alone, so nothing here
-  restates it;
+- the line count against MAX_LINES, read from whichever Python script in
+  the config source's scripts folder sets it, where the number lives
+  alone, so nothing here restates it, and unread where two set it
+  differently;
 - every ~/ path in a code span that resolves nowhere, and for a
   ~/.claude/ one, a payload source that is gone;
 - every skill named in a code span, its tree, and whether it is deployed
@@ -372,7 +373,7 @@ def mask(text: str, denied: list[re.Pattern], tally: dict[str, int]) -> str:
 
 
 def payload_root(given: str | None) -> Path | None:
-    """The config source: claude/CLAUDE.md and the link-claude.ps1 deploy script at its root."""
+    """The config source: the root holding claude/CLAUDE.md, whatever its scripts are named."""
     if given:
         root = Path(given)
     else:
@@ -382,20 +383,23 @@ def payload_root(given: str | None) -> Path | None:
         except (OSError, subprocess.CalledProcessError):
             return None
         root = Path(top)
-    markers = (root / "claude" / "CLAUDE.md", root / "scripts" / "link-claude.ps1")
-    return root if all(marker.is_file() for marker in markers) else None
+    return root if (root / "claude" / "CLAUDE.md").is_file() else None
 
 
 def max_lines(payload: Path | None) -> int | None:
-    """MAX_LINES as the config source's lint-claude-md.py sets it, or None where unread."""
+    """MAX_LINES as the config source's scripts folder sets it; None where none or two disagree."""
     if payload is None:
         return None
-    try:
-        text = (payload / "scripts" / "lint-claude-md.py").read_text(encoding="utf-8")
-    except OSError:
-        return None
-    setting = re.search(r"^MAX_LINES\s*=\s*(\d+)", text, re.M)
-    return int(setting.group(1)) if setting else None
+    values: set[int] = set()
+    for script in sorted((payload / "scripts").glob("*.py")):
+        try:
+            text = script.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        setting = re.search(r"^MAX_LINES\s*=\s*(\d+)", text, re.M)
+        if setting:
+            values.add(int(setting.group(1)))
+    return values.pop() if len(values) == 1 else None
 
 
 def code_spans(lines: list[str]) -> list[tuple[int, str]]:
@@ -583,7 +587,8 @@ def render_check(report: dict) -> None:
     print(f"source     {report['source']} ({where})")
     counted = report["lines"]
     cap_text = (f", cap {counted['cap']} (MAX_LINES), headroom {counted['headroom']}"
-                if counted["cap"] is not None else ", cap unread: no lint-claude-md.py")
+                if counted["cap"] is not None
+                else ", cap unread: the scripts folder sets no one MAX_LINES")
     print(f"lines      {counted['count']}{cap_text}")
     pointers = report["dead_pointers"]
     print(f"pointers   {len(pointers)} resolve nowhere")
@@ -638,8 +643,7 @@ def check(args: argparse.Namespace, find_session: ModuleType) -> int:
     """Run every deterministic check on the user-scope CLAUDE.md; 1 when any finds something."""
     payload = payload_root(args.payload)
     if args.payload and payload is None:  # a mistyped path must not read as a clean audit
-        print(f"error: --payload {args.payload!r} holds no claude/CLAUDE.md and "
-              "link-claude.ps1 under scripts", file=sys.stderr)
+        print(f"error: --payload {args.payload!r} holds no claude/CLAUDE.md", file=sys.stderr)
         return 2
     config_dirs = find_session.config_dirs()
     own = config_dirs[0][1]
