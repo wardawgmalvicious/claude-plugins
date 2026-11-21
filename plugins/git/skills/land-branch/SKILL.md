@@ -187,6 +187,15 @@ to fix, but name it in the body (step 5).
 
 Anything that should not ship yet is a stop: say so rather than landing it.
 
+**Then read the other direction, what `main` gained**: step 3 can
+outlast other merges, no conflict, check or review reads a gained line,
+and the PR merge, bar a strict check, lands on a moved `main` unrefused.
+Fetch, keep
+`origin/<default>` as `<seen>`, and where it moved past `<base>`, read
+what it gained against the branch ([how](references/integration-routes.md#what-main-gained-since-step-1)).
+A gained line the branch makes false is the branch's to correct: merge
+`origin/<default>` in, fix it by `commit-changes`, push.
+
 ## 5. Open the PR — through the identity step 2 confirmed
 
 `gh pr create -R <owner>/<repo> --title … --body-file …` from the probed
@@ -271,6 +280,10 @@ in the same command as the write, the PR merge by
 is the answer, not an error to retry; the reference below says why
 heads move and how to find which side did.
 
+**Fetch before the pin**: where `origin/<default>` moved past `<seen>`,
+step 4's read runs again from `<seen>`. A correction is a new head:
+push it, and step 6 again.
+
 ```bash
 [[ "$(git branch --show-current)" == "<branch>" && "$(git rev-parse <branch>)" == "<sha>" ]] \
   && git switch <default> && git merge --ff-only <branch> && git push origin <default>
@@ -336,31 +349,18 @@ Through the same tool step 2 confirmed — **both routes verify, and the
 | Merged, and by whom | `gh pr view <n> -R <owner>/<repo> --json state,mergedBy` | `pull_request_read` method `get` |
 | CI conclusions | `gh pr checks <n> -R <owner>/<repo>` | `pull_request_read` method `get_check_runs` |
 
-- Expect the PR to read as merged, and a merging identity that matches
-  step 2. **The two routes do not share a field name**: `merged: true`
-  is the MCP's, and `gh pr view <n> --json merged` answers *"Unknown
-  JSON field: merged"*. `state` (`MERGED`), `mergedAt` and `mergedBy`
-  are `gh`'s (confirmed against `gh pr view --json`, 2026-09-16).
+- Expect `MERGED` and a merging identity matching step 2; `merged:
+  true` is the MCP's field, and `gh` has none by that name.
 - **`get_check_runs` can refuse a token that opened the PR** (step 2):
   the `github-mcp` route's caveat: `gh pr checks <n>` then reads CI.
 - Read the check conclusions rather than the summary. A review bot,
   such as `copilot-pull-request-reviewer`, is **not** a gate, Claude
   Code Review's result being step 6's; a `pre-commit` style job is.
-- **`gh pr checks` exits non-zero by design** — exit code 8 is *checks
-  pending*, a failure is likewise non-zero, and a repo with **no CI at
-  all** exits **1**, printing `no checks reported on the '<branch>'
-  branch` to **stderr** with stdout empty (gh 2.101.0, measured
-  2026-09-17). That is the answer, not a broken command; do not retry
-  it. "No CI configured" and "checks passed" are different states the
-  exit code does **not** separate — only that stderr line does, so a
-  run that discarded stderr must report neither.
-- **To wait for CI, give `gh pr checks <n> --watch` the Bash tool's
-  `timeout` parameter or `run_in_background` rather than coreutils
-  `timeout`.** Those keep `gh` bare, on the path step 2's probe vouched
-  for, while `timeout gh` reaches a wrapper only where a wrapper file
-  sits on `PATH` ahead of `gh.exe`. Where none did, in a client repo,
-  the keyring's active account answered
-  `Could not resolve to a Repository`, as a bad slug reads (2026-09-23).
+- **`gh pr checks` exits non-zero by design**: 8 is pending, and no CI
+  at all exits 1 with only a stderr line to say so, which a run that
+  drops stderr cannot report; wait by `--watch` under the Bash tool's
+  `timeout` or `run_in_background`, never coreutils `timeout`, which
+  misses a `gh` wrapper ([both](references/integration-routes.md#reading-ci)).
 - **Read `origin/main` against the pins, never HEAD**, which the refspec
   push and the PR merge leave on the branch:
 

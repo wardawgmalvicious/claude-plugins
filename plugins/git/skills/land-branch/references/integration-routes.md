@@ -7,12 +7,14 @@ you, the `gh api` settings read with its `null` caveat, the refspec
 mechanics of the no-checkout route and its two silent traps, what it
 costs to honour a request for a squash or a merge commit and the message
 each passes, why the PR route is not the async merge API and a stack not
-this skill's, and how step 8 reads what landed.
+this skill's, what `main` gained since step 1, and how step 8 reads what
+landed and CI.
 
 Read this **before the step 6 disclosure** whenever the run is taking
 anything but the default `--ff-only` route. Step 6 has to state which
 route step 7 will take, so the mechanics have to be in hand while that
-disclosure is being written, not after.
+disclosure is being written, not after. Steps 4, 7 and 8 link the
+sections they need on any route.
 
 ## Why not each alternative
 
@@ -145,6 +147,67 @@ GitHub's docs (read 2026-11-02):
 above the bottom, and a bottom one reads like any other. What
 `gh pr merge` prints on a stacked pull request is unmeasured.
 
+## What `main` gained since step 1
+
+**Steps 4 and 7 read the other direction, what `origin/<default>`
+gained, because nothing else does.** A conflict is textual and per
+file, a required check runs the branch's tree, and a review reads
+`<base>...<branch>`, which holds nothing the base gained. A loose
+required check lets a branch merge that "**does not** have to be up to
+date with the base branch", and a strict one forces an update that
+still passes on prose (docs.github.com, "Available rules for rulesets",
+read 2026-11-20). The PR merge then lands on the moved `main`
+unrefused, where both fast-forward routes refuse.
+
+**The case**, once, in a client repo whose default required a pull
+request (observed 2026-11-20, 2.1.328): after step 1's only fetch,
+another pull request merged a rewrite of a doc saying a CI job's last
+step was its only one installing a dependency, while this branch, in
+step 3's review and four fix commits, added a second install to that
+job. The two shared no file: `git merge-tree --write-tree` exited 0,
+GitHub read `MERGEABLE`, the required check passed and the managed
+review found no issues. Another session's review caught it minutes
+before the merge.
+
+**The read**, from `<from>`, `<base>` at step 4 and `<seen>` at step 7:
+
+```bash
+git fetch origin
+git rev-parse origin/<default>         # the tip now: <seen> after each read; equal to <from>: nothing gained, stop here
+git diff --name-only origin/<default>...<branch> | sed 's|.*/||' | sort -u > <scratchpad>/branch-names.txt   # the basenames the branch touches
+git diff <from> origin/<default> | grep '^+[^+]' | grep -F -f <scratchpad>/branch-names.txt              # the cue: gained lines naming one
+git diff --name-only <from> origin/<default>   # every file main gained
+```
+
+**Each line is a command of its own, with no `$(...)`**: a linked
+worktree's guard refused a `names=$(git diff …)` form as too complex to
+verify, and ran each of these alone (observed 2026-11-20, 2.1.330).
+
+**The cue is a tell, not a proof.** It printed the one line that
+mattered in the case above, the doc's table row naming the workflow
+file, and has been tried on no other such case. A gained sentence about
+the branch's subject that names none of its files prints nothing, and a
+common basename matches lines that mean nothing here: over nine commits
+of this repo's own history, against seven names one of which was
+`README.md`, it printed 25 lines
+(observed 2026-11-20, git 2.55). So the names list is read too, and a
+doc among them is opened where the branch changes what it describes.
+
+**A gained line the branch makes false is the branch's to correct**:
+`git merge origin/<default>` into the branch, never a rebase, since step
+3 pushed it and a rewrite needs the `--force` this skill bans; fix it
+through `commit-changes`; push. The merge-in, and each merge it brings
+from `main`, counts as the branch's own in step 8's `<base>..<sha>`, so
+§ "Verifying what landed" still adds up. At step 4 the PR then opens on
+the corrected head, which a managed review covers; at step 7 it is a new
+head after step 6's yes, so step 6 runs again on it. On a fast-forward
+route the merge-in then lands on `main` as a merge commit, which step
+7's default otherwise never adds: step 6 names it, with step 1's
+`--merges` count, as § "Merge commit" does.
+
+Not checked: whether a managed review re-runs on a head pushed after
+the pull request opened.
+
 ## Verifying what landed
 
 Step 8 reads `origin/main` against two pins: step 1's `<base>`, where
@@ -193,6 +256,30 @@ alone, and with no fetch at all the PR merge passed
 exactly one revision and fails `fatal: Needed a single revision`, exit
 128 — run twice in one landing before the error was read rather than
 retried (2026-09-22; reproduced 2026-09-23, git 2.55).
+
+**The two routes do not share a field name**: `merged: true` is the
+MCP's, and `gh pr view <n> --json merged` answers *"Unknown JSON field:
+merged"*. `state` (`MERGED`), `mergedAt` and `mergedBy` are `gh`'s
+(confirmed against `gh pr view --json`, 2026-09-16).
+
+### Reading CI
+
+**`gh pr checks` exits non-zero by design** — exit code 8 is *checks
+pending*, a failure is likewise non-zero, and a repo with **no CI at
+all** exits **1**, printing `no checks reported on the '<branch>'
+branch` to **stderr** with stdout empty (gh 2.101.0, measured
+2026-09-17). That is the answer, not a broken command; do not retry
+it. "No CI configured" and "checks passed" are different states the
+exit code does **not** separate — only that stderr line does, so a
+run that discarded stderr must report neither.
+
+**To wait for CI, give `gh pr checks <n> --watch` the Bash tool's
+`timeout` parameter or `run_in_background` rather than coreutils
+`timeout`.** Those keep `gh` bare, on the path step 2's probe vouched
+for, while `timeout gh` reaches a wrapper only where a wrapper file
+sits on `PATH` ahead of `gh.exe`. Where none did, in a client repo,
+the keyring's active account answered
+`Could not resolve to a Repository`, as a bad slug reads (2026-09-23).
 
 ## Reading what `main` requires
 
