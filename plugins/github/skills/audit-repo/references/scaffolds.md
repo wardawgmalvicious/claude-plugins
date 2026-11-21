@@ -305,9 +305,11 @@ does not reach.
 ## A pre-commit baseline
 
 **Missing when** the repo has no `.pre-commit-config.yaml`, or one
-without `gitleaks` and `identity-guard`. The strongest of these offers:
-both hooks stop what `recreate-repo` cleans up after, a secret or a
-denylisted name pushed, which happened twice.
+without `gitleaks` and `identity-guard`, or, where `.github/workflows/`
+holds a workflow, one without `actionlint` and `zizmor`. The strongest
+of these offers: `gitleaks` and `identity-guard` stop what
+`recreate-repo` cleans up after, a secret or a denylisted name pushed,
+which happened twice.
 
 First run `git config core.hooksPath`. Where it prints a directory,
 `pre-commit install` exits 1 (`Cowardly refusing to install hooks with
@@ -357,6 +359,26 @@ config folder, against the user's identity denylist, and skips with
 exit 0 where the script is absent, so a co-developer's commit is not
 blocked; `lint-briefs` does the same without `triage-inbox` or `uv`.
 The repo this skill is authored in tests each entry both ways.
+
+**Where `.github/workflows/` holds a workflow, offer the workflow
+linters with the baseline**, on the same yes or their own:
+`pre-commit-workflow-lint.yaml`, appended under `repos:`. Its header
+says what each checks and why neither needs an install step, in a clone
+or in CI. Then run both once over the repo's workflows and put each
+finding to the user, to fix or to ignore on its line with the reason:
+
+```bash
+pre-commit run actionlint --all-files   # a first run builds actionlint, about 3 minutes
+pre-commit run zizmor --all-files
+```
+
+zizmor's own `files:` pattern matches `.github/workflows/` at any
+depth, so a repo keeping workflow fixtures under `tests/` anchors it at
+the root with a `files:` of its own. **The Claude Code Action scaffold
+below carries two inline ignores**, `dangerous-triggers` on its
+`issue_comment` trigger and `artipacked` on its checkout, each kept as
+the action's own example has it, so it commits under the hook as
+copied (zizmor 1.32.0, 2026-11-20).
 
 ## A pre-commit workflow
 
