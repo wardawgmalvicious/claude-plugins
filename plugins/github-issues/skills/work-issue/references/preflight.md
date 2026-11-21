@@ -226,6 +226,44 @@ the board and the account once for the run. **Stop on any of these:**
   sub-issues closed: close it`: one
   [§ "Closing a parent"](#closing-a-parent) leaves to the user.
 
+**Then `work-issue` compares the card's Work model with its session's,
+before any write**, on the card it will work, a parent's picked
+sub-issue's; `lead-sessions` skips it, passing `--model` and `--effort`
+on each worker. **A session cannot switch its own model**: the user
+does, by `/model <alias>` or the desktop app's picker, and a switch
+writes the whole conversation to a new cache, cheapest now, before the
+work grows it (`skill-authoring.md`, pin economics).
+
+- **The session's model** is the latest line naming it, "The exact
+  model ID is claude-opus-5-5", in the system prompt or a later `model`
+  attachment, read by its family, the word after `claude-`: `haiku`,
+  `sonnet`, `opus` or `fable`. A switch mid-session adds that
+  attachment, which wins, though a mid-turn switch adds it one request
+  late: one session gained "claude-opus-5-5" after "claude-fable-5-2",
+  its transcript recording 11 entries on the first and the attachment
+  after two on the second (observed 2026-11-21, 2.1.325, desktop app).
+  A `claude -p` session carries the line too: four `--model opus` arms
+  each read "claude-opus-5-5" off their own system prompt and took the
+  family as `opus` (observed 2026-11-21, 2.1.330); an interactive CLI
+  session's line is unmeasured.
+- **A blank `work_model`**, an older brief's, is no mismatch, nor the
+  same family: say which in one line, with the effort below, and go on.
+- **A mismatch is asked by `AskUserQuestion`**, before the claim, so a
+  stop leaves nothing to undo: go on here, or stop for the user to run
+  `/model <alias>` and start this skill on `<n>` again. The pick follows
+  the card table's best result first and cost second (`file-issue`'s
+  § "2. Draft each item"), the families ranked `haiku`, `sonnet`,
+  `opus`, `fable`: a card above the session recommends the stop, and
+  one below it going on, naming the larger model's extra cost. **On a
+  resume the claim already stands**, and a stop leaves it as a park
+  does, so the skill on `<n>` after the switch resumes it.
+- **The effort goes beside it**, in the line or the question: the
+  card's `work_effort`; the skill's `xhigh` pin, which holds the
+  invoking turn alone, raising a lower card and lowering a `max` one,
+  which only the user's word sets; and that later turns run at the
+  session's saved level for its model, which only the transcript's
+  `effort` field shows.
+
 ## The ready order
 
 **One order serves both skills**, from the queue view's JSON, which

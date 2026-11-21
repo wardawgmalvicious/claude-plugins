@@ -66,6 +66,14 @@ uv run --no-project "${CLAUDE_SKILL_DIR}/../triage-inbox/scripts/set-card.py" . 
 section, the first `ready` one not in flight offered first. The one
 picked is `<n>` from here, its card read again.
 
+**Then compare the card's Work model with this session's**, by the
+same section, before any write. The skill runs on the session's model
+and applies neither work key, and a session cannot switch its own
+model, so a mismatch is the user's to settle in one `AskUserQuestion`:
+go on here, or stop for `/model <alias>` and this skill on `<n>` again.
+Unchecked, one issue carded `fable` ran on `opus` throughout, the user
+having taken the skill to follow its card (2026-11-21).
+
 **A card In flight and assigned to the acting account alone is a
 resume.** Find its worktree by the branch description step 4 wrote:
 
