@@ -1,0 +1,25 @@
+# The GitHub Actions workflow linters, appended under `repos:` in the repo's
+# .pre-commit-config.yaml where .github/workflows/ holds a workflow.
+# actionlint checks syntax, expressions and types, and runs shellcheck over
+# each run: block where shellcheck is on PATH, as it is on GitHub's Ubuntu
+# images. zizmor checks security: persisted credentials, token permissions,
+# template injection, dangerous triggers. A finding is fixed, or ignored on
+# its line with `# zizmor: ignore[<audit>] <why>`, never by dropping a hook.
+#
+# Each fetches its own pinned copy, so a clone and the CI job need no
+# install: actionlint is built by a Go that pre-commit downloads where none
+# is installed, which took about 3 minutes on a first run and about a second
+# after (pre-commit 4.7.0, 2026-11-20). zizmor's online audits run only with
+# a token in GH_TOKEN, GITHUB_TOKEN or ZIZMOR_GITHUB_TOKEN. Both tags are
+# lightweight, so each rev: is the commit its tag names, the plain line of
+# `git ls-remote --tags <repo> '<tag>'`.
+  - repo: https://github.com/rhysd/actionlint
+    rev: 914e7df21a07ef503a81201c76d2b11c789d3fca  # frozen: v1.7.12
+    hooks:
+      - id: actionlint
+        name: Lint GitHub Actions workflows (actionlint)
+  - repo: https://github.com/zizmorcore/zizmor-pre-commit
+    rev: 06a39750ec31860bb44f2acf67182c40016cd1e7  # frozen: v1.32.0
+    hooks:
+      - id: zizmor
+        name: Audit GitHub Actions workflows for security (zizmor)

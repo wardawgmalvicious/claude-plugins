@@ -44,6 +44,16 @@
       ]
     },
     {
+      "name": "github-issues",
+      "source": "./plugins/github-issues",
+      "category": "development",
+      "skills": [
+        "./skills/file-issue",
+        "./skills/update-issue",
+        "./skills/work-issue"
+      ]
+    },
+    {
       "name": "meta",
       "source": "./plugins/meta",
       "category": "productivity",

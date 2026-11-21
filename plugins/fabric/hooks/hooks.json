@@ -1,6 +1,17 @@
 {
-  "description": "Refuses the first edit to a Fabric item folder until the skill that owns the item has been invoked; see hooks/fabric-edit-gate.sh's header.",
+  "description": "Refuses the first edit to a Fabric item folder until the skill that owns the item has been invoked, and says at session start when az is missing or signed out; see each script's header in hooks/.",
   "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/fabric-az-check.sh\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
     "PreToolUse": [
       {
         "matcher": "Edit|Write",

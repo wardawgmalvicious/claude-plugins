@@ -38,10 +38,17 @@
 # step before the action's own write-access check runs for it, the Azure
 # sign-in included (code.claude.com github-actions and
 # github-actions-cloud-providers, read 2026-11-16).
+#
+# zizmor flags two lines, each kept as the action's example has it and
+# ignored inline so a repo with audit-repo's zizmor hook can commit this:
+# issue_comment, which it calls dangerous from v1.31.0 as it runs in the
+# base repo's context, and is how a comment's mention reaches the action;
+# and the checkout's persisted credentials, which the example does not
+# turn off (zizmor 1.32.0, 2026-11-20).
 name: Claude Code
 
 on:
-  issue_comment:
+  issue_comment: # zizmor: ignore[dangerous-triggers] the mention trigger itself
     types: [created]
   pull_request_review_comment:
     types: [created]
@@ -68,7 +75,7 @@ jobs:
       id-token: write
       actions: read # lets Claude read CI results on a pull request
     steps:
-      - name: Checkout repository
+      - name: Checkout repository # zizmor: ignore[artipacked] as the action's example
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 1

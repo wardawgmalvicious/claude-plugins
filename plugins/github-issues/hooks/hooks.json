@@ -1,0 +1,51 @@
+{
+  "description": "Holds the plugin's command-runner agent's Write to the session's scratchpad; a plugin agent's own hooks field is ignored, so it is registered here on every Write and checks the agent itself. Names a session from its first prompt, and after a compaction offers a handoff brief and names the command that lists the board's issues. See each script's header in hooks/.",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/command-runner-write-scope.sh\"",
+            "timeout": 15,
+            "onFailure": "continue"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/offer-handoff.sh\"",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "clear",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/name-session.sh\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/hooks/name-session.sh\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

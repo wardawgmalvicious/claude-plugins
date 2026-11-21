@@ -360,8 +360,7 @@ Through the same tool step 2 confirmed — **both routes verify, and the
   for, while `timeout gh` reaches a wrapper only where a wrapper file
   sits on `PATH` ahead of `gh.exe`. Where none did, in a client repo,
   the keyring's active account answered
-  `Could not resolve to a Repository`, which reads as a bad slug
-  (2026-09-23).
+  `Could not resolve to a Repository`, as a bad slug reads (2026-09-23).
 - **Read `origin/main` against the pins, never HEAD**, which the refspec
   push and the PR merge leave on the branch:
 
@@ -380,7 +379,8 @@ Through the same tool step 2 confirmed — **both routes verify, and the
   `origin/main` alone. Never `--short`, exit 128; the reference has both.
 
 Report the PR number, the merged state, and the CI conclusions. If CI is
-still running, say so rather than implying it passed.
+still running, say so rather than implying it passed, at once where the
+session's instructions forbid polling CI, as the desktop app's do.
 
 ## 9. Delete the branch
 

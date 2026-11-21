@@ -39,6 +39,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
         run: |
+          # The $ names below are GraphQL's variables, not the shell's.
+          # shellcheck disable=SC2016
           query='query($owner: String!, $name: String!, $number: Int!) {
             repository(owner: $owner, name: $name) {
               issue(number: $number) {
