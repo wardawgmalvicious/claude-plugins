@@ -1,11 +1,11 @@
 # A drift audit as a desktop session
 
-**A Claude desktop session can start each picked drift source's audit
+**A Claude desktop session can start each due drift source's audit
 as a child session of its own**, shown under it in the sidebar, which
 runs `audit-source-drift` and `file-audit-findings` for that one source,
 or for a source and its `with` partner, and hands its ledger rows to a
-lead. `report-backlog` offers it under
-`source` or `audit`, after its picks (2026-11-14). Placeholders are
+lead. `lead-sessions` starts them in its audit mode (2026-11-21),
+where `report-backlog` offered them after its picks from 2026-11-14. Placeholders are
 [preflight.md](preflight.md)'s, `<S>` being the scratchpad of the
 session that reads the line.
 
@@ -15,11 +15,13 @@ session that reads the line.
 tools**, loaded or deferred: a Claude desktop session has it, and a
 terminal session or a `claude -p` has none. Where it is deferred, load
 it by `ToolSearch` with `select:mcp__ccd_session__start_session` alone
-in its message. Without it, nothing here runs.
+in its message. Without it, nothing here runs: `lead-sessions`' audit
+mode audits each source by a headless `claude -p` worker instead, which
+asks its questions itself.
 
 **Start every due source's session at once, one call each**, on the
 user's yes, each with what follows. **A session that Claude started
-starts at most 5**, the first 5 due in the report's order, a source and
+starts at most 5**, the first 5 in the launch table's order, a source and
 its partner counting as one, and names the rest in its report as due
 for a session the user started. Since desktop v5.11492.0, a session
 Claude started can start sessions in Auto mode with no approval, within
@@ -36,6 +38,7 @@ session the user started. Each takes:
 | `use_worktree` | `true`, with `source_branch` `<default>`, the branch `git ls-remote --symref origin HEAD` names |
 | `title` | `Audit <id> drift` |
 | `name`, `branch_name` | `audit-<id>`, cut to 24 characters |
+| `model` | `opus`, the two audit skills' pin, so a lead on a higher model hands none down |
 | `effort` | left out, so the child inherits |
 | `prompt` | the brief below, filled |
 | `background` | the background below |
@@ -43,7 +46,7 @@ session the user started. Each takes:
 `<id>` is the source's registry id. `<through>`, `<next-floor>` and
 `<run>` are its `docs/audits/ledger.md` row's **Through**, **Next
 floor** and **Run**, each `—` where it has no row. `<issues>` lists the
-deferred issues `report-backlog` § 2 rule 4 joined to its next audit,
+deferred issues waiting on its next audit, as the lead's table names them,
 or reads `none`. **A source another one's `with` field names is that
 one's partner**, and their session is one: in the brief `<id>` is both,
 `fabric,fabric-iq-ontology`, the partner first, and the ledger sentence
@@ -71,12 +74,12 @@ in this same turn.
 ```
 
 ```text
-The user ran report-backlog under `audit` in this repo's main checkout
-and said yes to one audit session per picked drift source. Both audit
+The user ran lead-sessions under `audit` in this repo's main checkout
+and said yes to one audit session per due drift source. Both audit
 skills are typed only: the bare names in the task let this session call
 them in its first turn, at their own effort pin. This session changes
 only the ledger rows of the sources in its task, one per id, and lands
-them through a lead; the parent session only reports.
+them through a lead, which the parent session is.
 ```
 
 **Then the parent waits.** Each child's note, as its turns end, is one
@@ -145,15 +148,18 @@ line of the parent's report, its first line as the child wrote it.
 
 - **Bare names in the brief**, the user's pick on 2026-11-14,
   over the user typing two lines per child or a `claude -p` wrapper,
-  which cannot ask the user mid-audit. Both skills are
+  which cannot ask the user mid-audit; a lead with no `start_session`
+  runs one all the same, asking for it. Both skills are
   `disable-model-invocation: true`, and a bare `/<name>` in a turn's
   prompt permits the model's Skill call on such a skill for that turn,
   where a backticked one is refused (`.claude/rules/editing-skills.md`
   § "Invocation and spend fields"), untried for these two. Both
   pin `model: opus` (the user's call, 2026-11-14), which a bare-name
   call leaves unapplied, so a child runs on the model it starts on: the
-  parent session's, never a higher one (`start_session`'s `model`).
-  Start them from an Opus session. Their `effort: xhigh` holds for the
+  start's `model`, the parent session's or a lower one, never a higher
+  one (`start_session`'s `model`). Each start passes `opus`, as
+  the user's default became Fable on 2026-11-21, which a lead on it
+  would hand down. Their `effort: xhigh` holds for the
   turn that calls them. On 2026-11-14 every call of four children ran
   on Opus 5.5 by its transcript's `message.model`: three started from
   the parent's Opus 5.5 turn at `xhigh`, and one from its
@@ -174,9 +180,9 @@ line of the parent's report, its first line as the child wrote it.
   unmeasured, as § "Measured, and not" lists.
 - **No `effort` on the start**, the user's call on 2026-11-14:
   `start_session` takes a level at or below the parent's, and the
-  parent's turn runs `report-backlog` at its `medium` pin, so `xhigh`
-  might be capped or refused, while the skills' pin covers the turn
-  that matters.
+  skills' pin covers the turn that matters. The parent's turn then ran
+  `report-backlog` at its `medium` pin, where `xhigh` might have been
+  capped or refused.
 - **`user_asked`, each in a worktree from `main`**: on 2026-11-14 an
   `offer` card started the fabric child in the main checkout, while
   `user_asked` with `use_worktree: true` gave the github and power-bi
@@ -204,9 +210,11 @@ line of the parent's report, its first line as the child wrote it.
   idle child counts toward "at once", and each child here stays open
   until a lead lands its branch (child step 4), so a sixth could wait
   on landings. 5 is under the 10 per message as well (2026-11-15).
-- **Not on a report with no argument**, the user's call on 2026-11-14:
-  there **Start with** never picks a drift source, so an offer
-  would need a due rule of its own, which nothing defines.
+- **Started by a lead's own due rule**, by age and upstream, the user's
+  call on 2026-11-21: `report-backlog` started these from its
+  picks under `source` or `audit` alone, since a report with no
+  argument picks no drift source and nothing defined a due rule.
+  `lead-sessions`' audit mode says the rest of why.
 
 ## Measured, and not
 
@@ -237,4 +245,5 @@ permit and the pin, since each child asked only after both calls; and
 whether the skills' `effort: xhigh` pin or the session's `xhigh` set
 the level, since the two were equal; what a sixth start from a session
 Claude started does, and whether a child waiting on a lead counts
-toward its 5 at once.
+toward its 5 at once; and whether `start_session` takes `model: opus`
+from a parent on Fable, which no start has passed yet.

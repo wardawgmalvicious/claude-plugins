@@ -12,8 +12,9 @@ the stamp script and the skill the child runs**, as this one does: the
 script alone would offer a retest whose child stops on an unknown
 `test-skill` command. Where either is missing, the gate offers no
 retest and the report names none owed. `<stamp-script>` is the script
-`<stale-check>` runs, by the path the repo's instructions give it;
-with none, no retest is owed.
+`<stale-check>` runs, defined in the tail of
+[fast-forward-landing.md](fast-forward-landing.md), by the path the
+repo's instructions give it; with none, no retest is owed.
 
 ```bash
 test -f <stamp-script> && test -f .claude/skills/test-skill/SKILL.md   # exit 1: no retest here

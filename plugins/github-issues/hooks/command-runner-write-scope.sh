@@ -50,12 +50,19 @@
 # inside the scratchpad that points elsewhere is followed by Write and not by
 # this check.
 #
-# No `scratchpad_dir` refuses every Write. A `claude -p` session has no
-# scratchpad, nor does one on an API key or another provider (claude-directory
-# docs; print mode is missing from their list): 0 of 14 headless subagents
-# carried one, against 234 of 234 interactive ones (transcripts, 2026-11-05).
-# There it is the normal case, not a fault, and failing open let a cold
-# probe's Write land outside any scratchpad.
+# No `scratchpad_dir` refuses every Write. A session on an API key or another
+# provider, or with `enableArtifact` set to false, has no scratchpad
+# (claude-directory docs, read 2026-11-21), nor did a `claude -p` one on
+# 2.1.318: 0 of 14 headless subagents carried one, against 234 of 234
+# interactive ones (transcripts, 2026-11-05), nor test-skill's `-p` arms on
+# 2.1.327 (2026-11-18). On 2.1.330 a `claude -p` session has its own, under
+# its session id, only when it inherits CLAUDE_CODE_ENTRYPOINT=claude-desktop
+# or claude-vscode from a desktop-app or VS Code session's shell, where a
+# headless probe's Write there passed; one started from a plain shell, or
+# given `cli`, which -p rewrites to `sdk-cli`, has none (2026-11-21). With
+# none it is the normal
+# case, not a fault, and
+# failing open let a cold probe's Write land outside any scratchpad.
 #
 # Exit codes: 0 allows; 2 refuses, its stderr read by the agent, naming the
 # scratchpad, saying there is none, or saying a path could not be resolved
@@ -183,7 +190,7 @@ SCRATCH=$(jq_input '.scratchpad_dir // empty') || unchecked "jq could not read t
 [ -n "$FILE_PATH" ] || exit 0
 if [ -z "$SCRATCH" ]; then
     cat >&2 <<EOF
-Blocked by command-runner-write-scope: this session has no scratchpad (a claude -p session has none), so this agent writes no file.
+Blocked by command-runner-write-scope: this session has no scratchpad (as a claude -p started outside the desktop app or VS Code, or one on an API key, another provider or enableArtifact false), so this agent writes no file.
   attempted:  $FILE_PATH
 Report the content to the caller instead, for it to write.
 EOF

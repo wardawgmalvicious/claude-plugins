@@ -137,8 +137,13 @@ claude -p -n "test-skill: <name>" --permission-mode auto --permission-prompts no
   `.claude/skills/` loads from it and step 7's probe copies come from
   it; only a standing group's junction points elsewhere, which the
   extra paragraph covers.
-- **"Your scratchpad is <dir>"**: a headless `claude -p` gets no
-  scratchpad in its environment, so "your scratchpad" named nothing. On
+- **"Your scratchpad is <dir>"**: a headless `claude -p` had no
+  scratchpad in its environment until 2.1.327, so "your scratchpad"
+  named nothing; since 2.1.330 one a desktop-app or VS Code session
+  starts has its own, under a path only its session id gives, and one a
+  terminal starts still has none (observed 2026-11-21, 2.1.330), so the
+  folder named here stays,
+  the parent having made it and knowing its path. On
   one issue the `capture-learning` child looked for one by listing the temp
   folder in a chained command, which auto mode denied, and stopped;
   told to use the one its environment names, it replied it had none and
@@ -242,9 +247,13 @@ claude -p --resume <session_id> -n "test-skill: <name>" --permission-mode auto -
 ```
 
 `<left>` is the budget less the first run's `total_cost_usd`, and the
-parent reads `<name>.resumed.json` as it read the first. One issue's
-resume, with this text and no `-n`, passed in 6 turns for $2.62
-(2026-11-03). **A child stopped by its budget or turn cap is not
+parent reads `<name>.resumed.json` as it read the first. **Its
+`total_cost_usd` is the child's whole cost**, the first run's
+included, as a resumed `claude -p` run's counts the whole session
+(observed 2026-10-12, and again 2026-11-21 on 2.1.330): never
+add the two runs' figures. One issue's resume, with this text and no
+`-n`, passed in 6 turns, its JSON reading $2.62 to the first run's
+$2.34 (2026-11-03). **A child stopped by its budget or turn cap is not
 resumed**, nor one whose `<left>` is not above 0: it stops, as
 `retest.md`'s "Anything else" says. The `-n` is given again
 since a `-p` resume without it was listed under another name
