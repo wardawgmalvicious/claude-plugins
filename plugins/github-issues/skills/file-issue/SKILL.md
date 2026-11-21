@@ -289,8 +289,9 @@ a fold's card field the caller's table did not show, old value and new:
 unasked, the field stays as it was. **A caller's
 draft that names a parent keeps it**; one that names none is tested
 against step 3's list like any item, **bar a new tracking parent**,
-which `group-issues` step 6 hands over to be filed standalone: a parent
-joins no parent there, and its `link-parents.sh` refuses a nested one.
+which is filed standalone: a parent joins no parent, as `group-issues`
+step 6 hands one over where it is installed, and its `link-parents.sh`
+refuses a nested one.
 
 ## 5. Check every body before anything is written
 

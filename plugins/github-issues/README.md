@@ -65,10 +65,38 @@ and editing no tracked file.
 A `PreToolUse` hook,
 [hooks/command-runner-write-scope.sh](hooks/command-runner-write-scope.sh),
 holds that agent's Write to the session's scratchpad. It is registered
-on every Write and checks only the agent's. It needs `bash` 4.4 or
-later, which Git for Windows provides, and `jq`, from your `PATH` or the
-copy `toolchain` fetched; without either it lets the Write through with
-a `hook error` notice. It refuses every Write of the agent's in a
-session with no scratchpad, such as `claude -p`, and on macOS and BSD,
-which lack the GNU `realpath -m` it resolves paths with; the agent then
-reports what it would have written, for the caller to write.
+on every Write and checks only the agent's, passing every other Write
+first. It needs `bash` 4.4 or later, which Git for Windows provides, and
+`jq`, from your `PATH` or the copy `toolchain` fetched; without either
+it lets the agent's Write through with a `hook error` notice. It refuses
+every Write of the agent's in a session with no scratchpad, such as
+`claude -p`, and on macOS and BSD, which lack the GNU `realpath -m` it
+resolves paths with; the agent then reports what it would have written,
+for the caller to write.
+
+## The session hooks
+
+Two more hooks run in every session with the plugin on. Each needs
+`bash` 4.4 or later, handing over to the one on your `PATH` where `sh`
+is older or dash, and does nothing where none is found; neither ever
+blocks.
+
+- [hooks/name-session.sh](hooks/name-session.sh), on `UserPromptSubmit`
+  and on `SessionStart` after `/clear`, names a session once, from its
+  first prompt, so the `/resume` picker and other sessions show what it
+  is for: `/github-issues:work-issue 12` names it
+  `github-issues:work-issue: 12`, a prompt naming an issue as
+  `issue #7` names it `issue: #7`, and a session in a worktree takes
+  the worktree's name. Each name ends in the first prompt's local date
+  and time. A session already named, by `--name` or `/rename`, keeps
+  its name.
+- [hooks/offer-handoff.sh](hooks/offer-handoff.sh), on `SessionStart`
+  after a compaction, tells Claude in every repository that a new
+  request a skill covers is a new invocation of that skill, not a run
+  of the copy re-attached after the summary. In a repository that has
+  a `.claude/rules/handoff-briefs.md` or a `docs/handoffs/` folder, as
+  `audit-repo`'s handoff-queue scaffold writes, it also says Claude may
+  offer, once, to file a brief while the summary still holds the
+  thread, and gives it the command that lists the board's open issues,
+  so the offer can name the issue a thread belongs to. It never reads
+  the board itself.

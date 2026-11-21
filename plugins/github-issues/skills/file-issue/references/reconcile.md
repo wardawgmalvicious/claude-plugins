@@ -49,13 +49,13 @@ parent's scope sits, never its title alone:
   its body's words. The user's yes covers it as any row.
 - **Two fit**: name both in the row, and ask which beside the table, in
   the same `AskUserQuestion`.
-- **None fits**: **new**, with no parent, and the report says
-  `group-issues` can group it later. **A guess costs more than no
-  parent**: a link made is the user's to move, by `parent differs:`,
-  where a standalone issue joins one in a regroup.
-- **A new tracking parent takes none**, as `group-issues` step 6 hands
-  one over: a parent joins no parent there, and `link-parents.sh`
-  refuses a child of a nested one.
+- **None fits**: **new**, with no parent, and the report says a regroup
+  can group it later, by `group-issues` where it is installed. **A guess
+  costs more than no parent**: a link made is the user's to move, by
+  `parent differs:`, where a standalone issue joins one in a regroup.
+- **A new tracking parent takes none**: a parent joins no parent, as
+  `group-issues`, where it is installed, hands one over at its step 6,
+  and its `link-parents.sh` refuses a child of a nested one.
 - **A Deferred parent that gains an open sub-issue reads Open**, by
   § "Reopening a Deferred parent" below, under the same yes: a line
   under the table names each one.
@@ -69,15 +69,15 @@ parent's scope sits, never its title alone:
 
 **A parent whose card reads Deferred reads Open once it gains an open
 sub-issue**, set by the skill that linked the child:
-[SKILL.md](../SKILL.md) step 6, after `file-issues.sh`, and
-`group-issues` step 9, after `link-parents.sh`. Left Deferred, the queue
-view prints the open child under its deferred parent until the user
-runs `update-issue` with `<parent> reopen`, as one child under its
-parent needed (2026-11-05).
+[SKILL.md](../SKILL.md) step 6, after `file-issues.sh`, and, where it
+is installed, `group-issues` step 9, after `link-parents.sh`. Left
+Deferred, the queue view prints the open child under its deferred
+parent until the user runs `update-issue` with `<parent> reopen`, as
+one child under its parent needed (2026-11-05).
 
 - **Only an open child reopens it**: a sub-issue filed Deferred, or one
   whose card reads Deferred, leaves its parent as it is, as
-  `group-issues`' new-parent card does.
+  `group-issues`' new-parent card does where that skill is installed.
 - **The table's yes covers it only where the table shows it**: a line
   under it names each Deferred parent that will read Open, and the open
   child that moves it. A caller's table with no such line is asked again

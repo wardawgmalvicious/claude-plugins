@@ -37,7 +37,7 @@ The tail, after it:
 claude agents --json | bash "<land-branch>/landing-clear.sh" '<session-id>' worktree-<slug>; rc=$?; { [ "$rc" -eq 0 ] || [ "$rc" -eq 3 ]; } && git merge --ff-only worktree-<slug>; echo "exit=$?"   # checked again: a session may have started since the first line
 git log --oneline <before>..HEAD                                # the landed commits, post-rebase SHAs
 <deploy>                                                        # the repo's deploy line, only where the range changed what it deploys: the bullets below
-[ -d skills/fabric ] && ! command ls ~/.claude/skills | grep -xF -f <(command ls -d skills/*/*/ | grep -vE '^skills/(github-admin|github-issues|intake|social|meta|handoff-inbox|machine)/' | cut -d/ -f3)   # after any deploy: exit 1, with a name printed, is a platform or git skill deployed, and with none, not the repo root; root CLAUDE.md's line, kept equal
+<deploy-check>                                                  # the repo's check of the deployed payload, only after <deploy>: the bullets below
 git worktree remove .claude/worktrees/<slug>; echo "exit=$?"   # once any deployed-payload check passes; 255: the folder is held
 git branch -d worktree-<slug>                                   # refused while git still lists the worktree, so safe after a 255
 [ ! -e .claude/worktrees/<slug> ] || echo "LEFT .claude/worktrees/<slug>"   # anything printed: not removed; exit 0 when clean
@@ -86,10 +86,20 @@ what it saves, so the review's reads stay the caller's.
   themselves (transcripts of 2026-11-06 to 11-11 UTC). The caller
   reads the deploy's `WARNING` lines in the report, a real failure among
   them, and reruns it from the main checkout, which the removal leaves
-  alone. The `grep` after it exits 1
-  on a platform skill deployed, which stops the run before the removal,
-  and any check the deployed payload needs follows the `grep`, by its
-  own command.
+  alone.
+- **`<deploy-check>` follows only a deploy**, and only where the repo's
+  instructions give one, as they give `<deploy>`: here root `CLAUDE.md`
+  § "Commands"'s `grep` for a platform or git skill deployed, kept equal
+  to it but inverted, so that it exits 1 with a name printed, and with
+  none outside the repo's root, which stops the run before the removal:
+
+  ```bash
+  [ -d skills/fabric ] && ! command ls ~/.claude/skills | grep -xF -f <(command ls -d skills/*/*/ | grep -vE '^skills/(github-admin|github-issues|intake|social|meta|handoff-inbox|machine)/' | cut -d/ -f3)
+  ```
+
+  Any other check the deployed payload needs follows it, by its own
+  command. A repo with no deploy line runs neither, so the tail goes
+  from the landed commits to the removal.
 - **A refusal by auto mode comes back in the agent's report**: the
   agent's transcript holds the delegation, not the user's yes at the
   gate. The caller runs that command itself, on that yes, then the

@@ -8,7 +8,7 @@
 # which a quoted heredoc can corrupt on this machine (~/.claude/CLAUDE.md
 # § "Shell traps"). A Write anywhere else is out of its contract.
 #
-# Registered in the agent's own frontmatter (claude/agents/command-runner.md),
+# Deployed beside its agent, it is registered in the agent's own frontmatter,
 # not in settings.json, so it starts only for that agent's Write calls and
 # costs every other session nothing; security-reviewer-memory-scope.sh is the
 # settings.json shape, keyed by agent_type, which runs on every Edit and Write.
@@ -23,8 +23,11 @@
 # `github-issues:command-runner` (plugins and hooks docs, read 2026-11-20).
 # The suffix outlasts a plugin's rename, and a bare `command-runner`, this
 # setup's deployed agent, keeps its own frontmatter hook, so no Write is
-# checked twice. jq comes from PATH, else from the toolchain plugin's data
-# folder, as the guards find it.
+# checked twice. Another agent's Write, or the session's own, passes first,
+# by a text pattern that needs neither jq nor bash 4.4, so a machine missing
+# either reports it on the agent's Writes alone, not on every Write in the
+# session. jq comes from PATH, else from the toolchain plugin's data folder,
+# as the guards find it.
 #
 # The allowed root is the input's `scratchpad_dir` (Claude Code 2.1.257 on),
 # the session's own scratchpad, so no temp-folder layout is assumed. Both it
@@ -33,7 +36,11 @@
 # profile folder as NAME~1) and the model may write either form, and `cygpath -l`
 # expands only a path that exists (probed 2026-11-05); then lowercased, as
 # NTFS compares. `..` is resolved first, so a path that climbs out is refused,
-# and a path that resolves to nothing is refused too.
+# and a path that resolves to nothing is refused too. cygpath cannot resolve
+# a `..` below a folder that does not exist, and exits 1: such a path is
+# refused as unresolved, never walked, since the walk would drop its `..`
+# with the missing folder and place `<scratchpad>/x/../../../../repo/f`
+# inside the scratchpad (a review, 2026-11-20).
 #
 # Not held: Bash and PowerShell, which can write anywhere; the agent's body
 # forbids that and auto mode's classifier reviews it. A junction or symlink
@@ -52,19 +59,27 @@
 # (every Write on BSD or macOS, which lack GNU `realpath -m`); 1 when jq is
 # missing or cannot read the input, or no bash 4.4 or later is on PATH,
 # shown as a `hook error` notice while the Write proceeds: that crash fails
-# open as the other guards do (claude/hooks/README.md).
-# Its cases are in tests/hooks/, under its name.
+# open as the other guards do. In a plugin, only on the agent's own Write.
+# Its cases are a suite kept with its source, under its name.
 
 # Started as `sh`: bash in POSIX mode under Git for Windows, but dash on
 # Debian and Ubuntu and bash 3.2 on macOS, where what follows fails. So
 # hand over, once, to the bash on PATH, in POSIX syntax, and stop where
-# that is older than 4.4 too, as a check that never ran, as the guards do.
+# that is older than 4.4 too, as a check that never ran, as the guards do;
+# in a plugin, only once the input reads as the agent's, as below.
 case ${BASH_VERSION:-} in
     '' | [0-3].* | 4.[0-3].*)
         if [ -z "${COMMAND_RUNNER_BASH:-}" ] && command -v bash >/dev/null 2>&1; then
             COMMAND_RUNNER_BASH=1
             export COMMAND_RUNNER_BASH
             exec bash "$0" "$@"
+        fi
+        if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ]; then
+            INPUT=$(cat)
+            case $INPUT in
+                *'"agent_type"'*':command-runner"'*) ;;
+                *) exit 0 ;;
+            esac
         fi
         echo "command-runner-write-scope: no bash 4.4 or later on PATH, so this Write was not checked." >&2
         exit 1
@@ -93,7 +108,10 @@ canon() {
     local p long rest=
     case "${OSTYPE:-}" in
         msys* | cygwin*)
+            # A `..` cygpath could not resolve prints nothing, for the
+            # caller to refuse, as the header says.
             p=$(cygpath -m -a "$1" 2>/dev/null) || p=$1
+            case /${p//\\//}/ in */../*) return 0 ;; esac
             p=${p%/}
             while [ -n "$p" ] && [ ! -e "$p" ] && [ "${p%/*}" != "$p" ]; do
                 rest="/${p##*/}$rest"
@@ -118,6 +136,17 @@ canon() {
 }
 
 INPUT=$(cat)
+
+# A plugin's hook fires on every Write in the session: pass one that is not
+# its agent's before jq is looked for, by a pattern loose on purpose. A
+# Write's content reaches here JSON-escaped, so it holds neither quoted
+# piece, and a false match only reaches the jq read below, which decides.
+if [[ -n ${CLAUDE_PLUGIN_ROOT:-} ]]; then
+    case $INPUT in
+        *'"agent_type"'*':command-runner"'*) ;;
+        *) exit 0 ;;
+    esac
+fi
 
 # jq from PATH, else in a plugin install the toolchain plugin's copy, whose
 # PATH reaches the Bash tool but no other plugin's hook.
