@@ -106,3 +106,23 @@ would run twice.
   holds none, or the repository has the rule and no such folder, it
   gives the command that lists the board's open issues instead, so the
   offer can name the issue. It never reads the board itself.
+
+## The side-session guard
+
+A `PreToolUse` hook,
+[hooks/side-session-guard.sh](hooks/side-session-guard.sh), checks each
+side session a Claude desktop session starts by the
+`mcp__ccd_session__start_session` tool, which the desktop app alone
+offers. It refuses a start that names neither a `source_branch` nor
+`use_worktree` `false`, since the app then picks the worktree's base,
+and a worktree start whose brief says nothing of how its branch lands:
+no `landReady`, the mark `work-issue`'s hand-back block sets, no
+`audit-session.md`, and no `no hand-back`. Each refusal names
+`work-issue`'s `references/hand-back.md` in the plugin's folder, for
+Claude to Read and start again with its block in the prompt. A start
+with `use_worktree` `false` passes in silence. It needs only `bash`,
+starting nothing else, and fails open: on empty input the start goes
+ahead under a `hook error` notice. Whether Claude Code runs a hook on
+that tool is not yet seen in a desktop session. As with the session
+hooks, a copy under your config folder's `hooks/` leaves the work to
+that one.

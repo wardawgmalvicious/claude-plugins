@@ -89,6 +89,9 @@ takes no `#<n>` description, and each reply names its branch where
 <base>..<tip>`. A one-commit landing, an issue's or a branch's, names
 its SHA as both `<first>` and `<last>`, as leads replied on 2026-11-02:
 `landed worktree-provision-board-org-run 6bf86600..6bf86600`.
+**A desktop side session's child marks its branch the same way and
+messages no lead**: the session that leads its run does, and passes
+each reply on, by [hand-back.md](hand-back.md) (2026-11-20).
 
 **Then stay in the worktree, edit nothing, and end the turn.** The
 lead's reply arrives as a new turn, as an idle worker's did in the

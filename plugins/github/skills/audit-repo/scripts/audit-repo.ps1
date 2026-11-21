@@ -121,6 +121,13 @@
     reads as none; the fix names the bullet for the route the active
     rules imply.
 
+    A STALE ORIGIN/HEAD IS WARNED OF, under any policy, where the working
+    directory is a clone of the repo audited and its
+    refs/remotes/origin/HEAD names another branch than the default: a
+    fetch never moves that ref, so git and any tool reading the default
+    from the clone take the old one. A clone with no origin/HEAD, or a
+    run from elsewhere, is context.
+
     THE CLAUDE CODE ACTION IS CONTEXT, under org-internal and
     org-published alone: which default-branch workflows have a
     uses: naming anthropics/claude-code-action, or that none does, for the
@@ -2038,6 +2045,39 @@ if (-not $queueName) {
             Warn "$briefRule names no landing for the queue $queueName holds" `
                 -Why $landingWhy -Fix "${scaffoldStep}: add $bullet, copied, its bold opening as written"
         }
+    }
+}
+#endregion
+
+#region Local clone
+# The clone's own origin/HEAD, read only where the working directory is a
+# clone of the repo audited. A fetch creates it where it is missing and never
+# moves it (git-config's remote.<name>.followRemoteHEAD, default create), so
+# once the default branch moves on GitHub the clone keeps the old name, and
+# git reads 'origin' as that ref. On 2026-11-20 the desktop app cut two side
+# sessions' worktrees from the old default in a clone whose origin/HEAD named
+# it, the cause inferred, as the app does not say where it reads the default.
+# A clone with none, as a `git init` and `remote add` leaves one, is
+# context: nothing reads a ref that is not there.
+Step 'Local clone'
+$hereDir = (Get-Location -PSProvider FileSystem).ProviderPath
+$localRoot = git -C $hereDir rev-parse --show-toplevel 2>$null
+$localRepo = if ($LASTEXITCODE -eq 0 -and $localRoot) { Get-OriginRepo -Root $localRoot } else { $null }
+if ($localRepo -ne $Repo) {
+    Info "the working directory is no clone of $Repo, so no origin/HEAD is read"
+} else {
+    $originHead = git -C $localRoot symbolic-ref --quiet refs/remotes/origin/HEAD 2>$null
+    $headExit = $LASTEXITCODE
+    $wantHead = "refs/remotes/origin/$defaultBranch"
+    if ($headExit -ne 0 -or -not $originHead) {
+        Info "this clone has no origin/HEAD; a fetch creates one naming $defaultBranch"
+    } elseif ($originHead -ceq $wantHead) {
+        Ok "this clone's origin/HEAD names $defaultBranch, the default branch"
+    } else {
+        Warn "this clone's origin/HEAD names $($originHead -replace '^refs/remotes/origin/', ''), but the default branch is $defaultBranch" `
+            -Why ('a fetch never moves origin/HEAD, so git, and any tool reading the default from the clone, ' +
+                'still takes the old branch for origin') `
+            -Fix 'git remote set-head origin -a, which asks the remote, in each clone'
     }
 }
 #endregion

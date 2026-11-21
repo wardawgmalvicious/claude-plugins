@@ -9,6 +9,12 @@ The child starts in the main checkout and makes its own worktree by
 skill: a slash, then its plugin's name and a colon where a plugin
 carries it, then `work-issue`.
 
+**A side session with no board issue takes [hand-back.md](hand-back.md)
+instead**: it starts in a worktree the app makes and hands its branch
+back to the session that leads the run's landings. This route's child
+lands by `work-issue`'s own gate, which the user kept for a board issue
+(2026-11-20).
+
 ## Starting one
 
 **Only where `mcp__ccd_session__start_session` is among the session's
