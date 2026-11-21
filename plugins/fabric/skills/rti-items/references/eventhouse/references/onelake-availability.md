@@ -31,19 +31,43 @@ Fabric's Python-notebook readers, `deltalake` and Polars, lack it
 Learn's Eventhouse pages don't say a drop sets it, and whether Fabric
 Spark reads a copy Kusto mapped is untested. Where a reader without
 column mapping reads the copy, through a shortcut too, rebuild the table
-rather than drop in place, and **keep the rows first: a row count keeps
-none of them.** Copy them without the column,
-`.set T_hold <| T | project-away Col`, check `T_hold`'s count against
-`T`'s, and stop for the user's yes before `.drop table`, which deletes
-the copy. Then `.create table` without the column, its columns in
-`T_hold`'s order, since ingest from query matches columns by position,
-not name; turn availability back on; run
-`.clear table T cache streamingingestion schema` where streaming
-ingestion feeds it; `.append T <| T_hold`; check the count again; and
-only then drop `T_hold` (not run end to end here). Learn advises
-`with (distributed=true)` past 1 GB and each ingest under 1 GB, split
-across commands; `async` returns at once, its result in
-`.show operations` (Learn, *Ingest from query*, read 2026-11-19).
+rather than drop in place, and **keep the rows, the feed and the table's
+own objects first: a row count keeps none of them, and `.drop table`
+takes the table's ingestion mappings and policies with it** (Kusto
+emulator, 2026-11-19; not yet run in Fabric). Not run end to end here:
+
+1. Pause every feed into `T`, or what lands after the copy goes with
+   the drop. An Eventstream destination pauses and resumes "When
+   streaming was last stopped", which Learn says loses no data; the
+   Eventhouse (Direct Ingestion) destination can't pause, so pause its
+   source where that can, or stop the producer (Learn, *Pause and resume
+   data streams*, read 2026-11-19).
+2. Record the table's objects. Learn's
+   `.show database <db> schema as csl script` returns the commands that
+   create each table-level ingestion mapping and set each policy
+   (*.show database schema command*, read 2026-11-19): keep the ones
+   naming `T`. A bare `.create table` restores none, so a Direct
+   Ingestion destination keeps sending to a `mappingRuleName` that is
+   gone (`eventstream-api.md`), and a table-level retention or caching
+   policy falls back to the database's, unnoticed.
+3. Copy the rows without the column,
+   `.set T_hold <| T | project-away Col`, check `T_hold`'s count against
+   `T`'s, and stop for the user's yes.
+4. Right before `.drop table`, which deletes the copy, check the counts
+   again: a count that moved is a feed step 1 missed.
+5. `.create table` without the column, its columns in `T_hold`'s order,
+   since ingest from query matches columns by position, not name; rerun
+   step 2's mapping and policy commands, the column taken out of each;
+   turn availability back on; and run
+   `.clear table T cache streamingingestion schema` where streaming
+   ingestion feeds it.
+6. `.append T <| T_hold` and check the count again. Learn advises
+   `with (distributed=true)` past 1 GB and each ingest under 1 GB, split
+   across commands; `async` returns at once, its result in
+   `.show operations` (Learn, *Ingest from query*, read 2026-11-19).
+7. Resume the feed from when it stopped, see new rows land in `T`, and
+   only then drop `T_hold`.
+
 `iq-items`' `references/ontology.md`, *No delta column mapping*, is the
 same hazard from the reader's side.
 
