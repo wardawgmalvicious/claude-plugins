@@ -5,8 +5,8 @@
 # through `az rest`, so a session hears of it before a call fails.
 #
 # WHY HERE AND NOT IN TOOLCHAIN. The toolchain plugin checks gh for every
-# plugin that depends on it, but git and guards depend on it too, and
-# neither calls az. A check there would speak in their sessions, and at
+# plugin that depends on it, but plugins that never call az depend on it
+# too, git among them. A check there would speak in their sessions, and at
 # every session start on a machine whose Claude Code points AZURE_CONFIG_DIR
 # at a folder with no login. Here it speaks only where fabric is enabled
 # (the user's call, 2026-11-20).

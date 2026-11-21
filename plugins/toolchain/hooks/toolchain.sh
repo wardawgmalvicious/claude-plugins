@@ -10,9 +10,9 @@
 # tools.lock, run once with --version, and saved there. gh is checked, never
 # fetched: on PATH, and signed in by `gh auth token`, which reads gh's own
 # store and calls no API. pwsh is not checked: a skill that needs it says
-# so itself. Nor is az: git and guards depend on this plugin and never call
-# it, so the fabric plugin, whose skills do, checks it in its own
-# SessionStart hook, fabric-az-check.sh.
+# so itself. Nor is az: plugins that never call it depend on this one too,
+# git among them, so the fabric plugin, whose skills do, checks it in its
+# own SessionStart hook, fabric-az-check.sh.
 #
 # HOW THE TOOLS ARE FOUND. When it used the data folder, it appends the
 # folder to PATH through CLAUDE_ENV_FILE, which reaches the Bash tool's
