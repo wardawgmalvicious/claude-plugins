@@ -70,8 +70,10 @@ first. It needs `bash` 4.4 or later, which Git for Windows provides, and
 `jq`, from your `PATH` or the copy `toolchain` fetched; without either
 it lets the agent's Write through with a `hook error` notice. It refuses
 every Write of the agent's in a session with no scratchpad, such as
-`claude -p`, and on macOS and BSD, which lack the GNU `realpath -m` it
-resolves paths with; the agent then reports what it would have written,
+a `claude -p` started outside the Claude desktop app or VS Code, or
+one on an API key or another provider, and on macOS and BSD, which lack
+the GNU `realpath -m` it resolves paths with; the agent then reports
+what it would have written,
 for the caller to write.
 
 ## The session hooks
