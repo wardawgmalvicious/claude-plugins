@@ -36,11 +36,14 @@
 # profile folder as NAME~1) and the model may write either form, and `cygpath -l`
 # expands only a path that exists (probed 2026-11-05); then lowercased, as
 # NTFS compares. `..` is resolved first, so a path that climbs out is refused,
-# and a path that resolves to nothing is refused too. cygpath cannot resolve
-# a `..` below a folder that does not exist, and exits 1: such a path is
-# refused as unresolved, never walked, since the walk would drop its `..`
-# with the missing folder and place `<scratchpad>/x/../../../../repo/f`
-# inside the scratchpad (a review, 2026-11-20).
+# and a path that resolves to nothing is refused too. In a drive path, and a
+# `\\?\` one, cygpath resolves a `..` as text, below a folder that does not
+# exist too: `<scratchpad>/x/../../../../repo/f` comes back outside the
+# scratchpad, exit 0, and is refused for climbing out. It exits 1 on a `..`
+# below a missing folder in a relative path or a `//?/` one (cygpath 3.6.9,
+# 2026-11-20). A path still holding a `..` after it is refused as
+# unresolved, never walked: the walk and the comparison read text, where a
+# `..` left in would pass for a folder's name.
 #
 # Not held: Bash and PowerShell, which can write anywhere; the agent's body
 # forbids that and auto mode's classifier reviews it. A junction or symlink

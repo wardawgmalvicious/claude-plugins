@@ -75,6 +75,15 @@
 # neither the folder nor the rule, or a cwd in no checkout, gets the paragraph
 # on skills alone: an offer there would have nowhere to put a brief.
 #
+# A plugin's copy stands down beside this setup's own. A hook in both a
+# settings file and a plugin's hooks.json runs twice per event (plugins
+# docs, "Convert an existing .claude/ setup", read 2026-11-20), which here
+# is two offers after one compaction. So a run with CLAUDE_PLUGIN_ROOT set,
+# which Claude Code exports to a plugin's hooks alone, prints nothing where
+# `<config>/hooks/offer-handoff.sh` exists. The file stands for its
+# registration, which this hook does not read: a copy deployed there and
+# registered nowhere turns the plugin's off too.
+#
 # Bash builtins only, so it starts nothing but bash. The list stops at 8,000
 # characters, keeping the whole under the 10,000 Claude Code allows a hook's
 # stdout, past which Claude would see a file path and a preview instead. It
@@ -99,6 +108,9 @@ esac
 IFS= read -r -d '' INPUT || true
 CR=$'\r'
 LIMIT=8000
+
+# A plugin's copy, beside this setup's deployed one: that one offers.
+[[ -n ${CLAUDE_PLUGIN_ROOT:-} && -f ${CLAUDE_CONFIG_DIR:-$HOME/.claude}/hooks/offer-handoff.sh ]] && exit 0
 
 # json_value <field>: the field's string value in REPLY, separators as "/".
 # Only for fields holding a path or a plain word, which never hold a quote.
