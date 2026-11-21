@@ -64,8 +64,12 @@ anything else ends the turn again, and is no verdict 25 minutes after
 the push. With Auto-fix and its comment relay on, a review's summary
 and its inline comment arrived as one event that woke a session, about
 4.5 minutes after the review began (observed 2026-11-20, 2.1.328).
-Whether a review with no finding sends one, or any comes with Auto-fix
-off, is unchecked: the user's message is the wake then.
+A review with no finding woke a session too, its summary relayed as
+feedback to address 79 s after it posted (observed 2026-11-20,
+2.1.328): the event comes whatever the review found, so read the
+title and counts below before calling it a finding, and push nothing
+for a clean one. Whether any event comes with Auto-fix off is
+unchecked: the user's message is the wake then.
 
 ## Reading the result
 

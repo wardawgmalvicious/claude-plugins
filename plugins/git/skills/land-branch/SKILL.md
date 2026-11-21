@@ -187,12 +187,12 @@ to fix, but name it in the body (step 5).
 
 Anything that should not ship yet is a stop: say so rather than landing it.
 
-**Then read the other direction, what `main` gained**: step 3 can
-outlast other merges, no conflict, check or review reads a gained line,
-and the PR merge, bar a strict check, lands on a moved `main` unrefused.
-Fetch, keep
-`origin/<default>` as `<seen>`, and where it moved past `<base>`, read
-what it gained against the branch ([how](references/integration-routes.md#what-main-gained-since-step-1)).
+**Then read the other direction, what `main` gained since the branch
+forked, through step 3's review**: no conflict, check or review reads
+a gained line, and the PR merge, bar a strict check, lands on a moved
+`main` unrefused. Fetch, keep `origin/<default>` as `<seen>`, and where
+it moved past the fork point, read what it gained against the branch
+([how](references/integration-routes.md#what-main-gained-since-the-branch-forked)).
 A gained line the branch makes false is the branch's to correct: merge
 `origin/<default>` in, fix it by `commit-changes`, push.
 
