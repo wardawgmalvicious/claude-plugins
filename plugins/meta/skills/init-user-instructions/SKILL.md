@@ -15,8 +15,8 @@ when_to_use: "Use when asked to audit, tighten, trim, rebuild, rewrite or create
 machine, in every repo, before anything is read. Its source is
 `claude/CLAUDE.md` in the config source, the repo the user's config is
 authored in, copied by its deploy script, and the config source's
-script that sets `MAX_LINES` caps it, the one place the number
-lives. The file sits at the cap, so **a line goes in only for a
+script that sets `MAX_LINES` and names `CLAUDE.md` caps it, the one
+place the number lives. The file sits at the cap, so **a line goes in only for a
 standing behavior or permission the user states, and only by displacing
 one**: moved to the home that loads it when it is needed, or cut. No cap
 rises. **A user with no file yet gets a short first one** instead,
@@ -103,7 +103,10 @@ Each check is a line in the report, a clean one included,
 since a missing line reads as a check not run:
 
 - **lines**: the count, the cap read from the config source's script
-  that sets `MAX_LINES`, the headroom. "cap unread" is not a pass.
+  that sets `MAX_LINES` and names `CLAUDE.md`, named in the line, and
+  the headroom. "cap unread" is not a pass; it says why: no config
+  source, no such script, two that disagree, or one that would not
+  open.
 - **pointers**: each `~/` path in a code span that resolves nowhere, and
   for a `~/.claude/` one, a payload source that is gone.
 - **skills**: each skill named, its tree, and whether it is deployed at
@@ -281,8 +284,9 @@ approves rows, not the table.
 
 - **Edit mode, in the config source**: exactly the approved rows, with
   Edit; a moved line leaves in the same edit, and ledger moves keep their
-  paragraphs whole. Then the script that sets `MAX_LINES`, by
-  `uv run`, which must pass. Stop there and name `commit-changes` as
+  paragraphs whole. Then the script step 2's **lines** named, by
+  `uv run`, which must pass; with the cap unread, say no lint ran, and
+  why. Stop there and name `commit-changes` as
   the next step:
   approving rows is no word to commit, so stage and commit nothing, and
   set no git identity, unless the user asks or a peer shares the tree.

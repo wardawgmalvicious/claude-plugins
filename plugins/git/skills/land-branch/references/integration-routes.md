@@ -7,8 +7,8 @@ you, the `gh api` settings read with its `null` caveat, the refspec
 mechanics of the no-checkout route and its two silent traps, what it
 costs to honour a request for a squash or a merge commit and the message
 each passes, why the PR route is not the async merge API and a stack not
-this skill's, what `main` gained since step 1, and how step 8 reads what
-landed and CI.
+this skill's, what `main` gained since the branch forked, and how step 8
+reads what landed and CI.
 
 Read this **before the step 6 disclosure** whenever the run is taking
 anything but the default `--ff-only` route. Step 6 has to state which
@@ -147,12 +147,13 @@ GitHub's docs (read 2026-11-02):
 above the bottom, and a bottom one reads like any other. What
 `gh pr merge` prints on a stacked pull request is unmeasured.
 
-## What `main` gained since step 1
+## What `main` gained since the branch forked
 
 **Steps 4 and 7 read the other direction, what `origin/<default>`
 gained, because nothing else does.** A conflict is textual and per
 file, a required check runs the branch's tree, and a review reads
-`<base>...<branch>`, which holds nothing the base gained. A loose
+`<base>...<branch>`, which starts at the fork point and holds nothing
+the base gained after it. A loose
 required check lets a branch merge that "**does not** have to be up to
 date with the base branch", and a strict one forces an update that
 still passes on prose (docs.github.com, "Available rules for rulesets",
@@ -169,10 +170,18 @@ GitHub read `MERGEABLE`, the required check passed and the managed
 review found no issues. Another session's review caught it minutes
 before the merge.
 
-**The read**, from `<from>`, `<base>` at step 4 and `<seen>` at step 7:
+**The read starts at the branch's fork point, not step 1's `<base>`**:
+a branch cut before `main`'s latest merges has them read by neither
+step 3's review, whose range starts at that fork point, nor step 1,
+which only records where `main` stood. Until 2026-11-21 step 4 read
+from `<base>`: a branch cut at X, with `main` at Y when landing began,
+found the tip equal to `<from>` and read nothing of X..Y. So `<from>` is
+the fork point at step 4, read after the fetch, and `<seen>` at step 7,
+since step 4 read up to it:
 
 ```bash
 git fetch origin
+git merge-base origin/<default> <branch>   # step 4's <from>, the fork point; step 7's is <seen>
 git rev-parse origin/<default>         # the tip now: <seen> after each read; equal to <from>: nothing gained, stop here
 git diff --name-only origin/<default>...<branch> | sed 's|.*/||' | sort -u > <scratchpad>/branch-names.txt   # the basenames the branch touches
 git diff <from> origin/<default> | grep '^+[^+]' | grep -F -f <scratchpad>/branch-names.txt              # the cue: gained lines naming one
@@ -188,10 +197,29 @@ mattered in the case above, the doc's table row naming the workflow
 file, and has been tried on no other such case. A gained sentence about
 the branch's subject that names none of its files prints nothing, and a
 common basename matches lines that mean nothing here: over nine commits
-of this repo's own history, against seven names one of which was
-`README.md`, it printed 25 lines
+of the repo this skill is authored in, against seven names one of which
+was `README.md`, it printed 25 lines
 (observed 2026-11-20, git 2.55). So the names list is read too, and a
 doc among them is opened where the branch changes what it describes.
+
+**A branch far behind `main` reads long**: from the fork point, every
+commit it missed. From three fork points in that repo, 22, 153 and 603
+commits back, the cue printed 10, 60 and 145 lines and the names list
+51, 171 and 636 files, nearly every cue line from `SKILL.md`, a
+basename many of its files share (observed 2026-11-21, git 2.55).
+**Never bound the read by commits**: a bound drops the oldest gain,
+which no review, conflict or check reads either. Where a basename the tree holds more than once floods
+the cue, drop it from `branch-names.txt` and read its lines apart,
+keeping those that also name its file's folder, which kept 0, 2 and 4:
+
+```bash
+git diff <from> origin/<default> | grep '^+[^+]' | grep -F <basename> | grep -F <folder>   # a shared basename's lines naming its folder too
+```
+
+A names list too long to read whole is read first for the files gained
+in the folders the branch touches, `-- <folder>` on its command, 1, 4
+and 8 files from those fork points, then for docs on the branch's
+subject by name.
 
 **A gained line the branch makes false is the branch's to correct**:
 `git merge origin/<default>` into the branch, never a rebase, since step
