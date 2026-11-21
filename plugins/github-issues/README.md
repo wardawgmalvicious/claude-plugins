@@ -79,7 +79,11 @@ for the caller to write.
 Two more hooks run in every session with the plugin on. Each needs
 `bash` 4.4 or later, handing over to the one on your `PATH` where `sh`
 is older or dash, and does nothing where none is found; neither ever
-blocks.
+blocks. Where your Claude config folder, `~/.claude` unless
+`CLAUDE_CONFIG_DIR` names another, already holds a copy of one under
+`hooks/`, the plugin's copy does nothing and leaves the work to that
+one, taking it as registered in your settings: a hook in both places
+would run twice.
 
 - [hooks/name-session.sh](hooks/name-session.sh), on `UserPromptSubmit`
   and on `SessionStart` after `/clear`, names a session once, from its
@@ -97,6 +101,8 @@ blocks.
   a `.claude/rules/handoff-briefs.md` or a `docs/handoffs/` folder, as
   `audit-repo`'s handoff-queue scaffold writes, it also says Claude may
   offer, once, to file a brief while the summary still holds the
-  thread, and gives it the command that lists the board's open issues,
-  so the offer can name the issue a thread belongs to. It never reads
-  the board itself.
+  thread. Where `docs/handoffs/` holds brief files it lists them, so
+  the offer can name the brief a thread belongs to. Where the folder
+  holds none, or the repository has the rule and no such folder, it
+  gives the command that lists the board's open issues instead, so the
+  offer can name the issue. It never reads the board itself.

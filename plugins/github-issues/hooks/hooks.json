@@ -1,5 +1,5 @@
 {
-  "description": "Holds the plugin's command-runner agent's Write to the session's scratchpad; a plugin agent's own hooks field is ignored, so it is registered here on every Write and checks the agent itself. Names a session from its first prompt, and after a compaction offers a handoff brief and names the command that lists the board's issues. See each script's header in hooks/.",
+  "description": "Holds the plugin's command-runner agent's Write to the session's scratchpad; a plugin agent's own hooks field is ignored, so it is registered here on every Write and checks the agent itself. Names a session from its first prompt, and after a compaction offers a handoff brief, listing the repo's brief files or, where it keeps none, naming the command that lists the board's issues. Each of those two does nothing where your Claude config folder's hooks/ already holds a copy. See each script's header in hooks/.",
   "hooks": {
     "PreToolUse": [
       {

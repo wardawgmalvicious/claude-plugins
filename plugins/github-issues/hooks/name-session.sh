@@ -35,8 +35,14 @@
 #
 # Leaves alone a session that already has a name (`session_title` in the
 # input: --name, /rename, a probe's `-n "probe: ..."`), and one whose
-# transcript already holds a prompt: a session that was running when this
-# hook was deployed, or a resumed one. "Seen" is a marker in the session's
+# transcript already holds a reply: a session that was running when this
+# hook was deployed, or a resumed one. A prompt's row is no such sign: a
+# built-in command typed first writes `"type":"user"` rows of its own, and
+# the test for one left that session unnamed for good. Each of the 27 past
+# transcripts that open with /effort, /plugin, /model, /mcp, /agents or
+# /resume holds such rows before its first prompt, and none a
+# `"type":"assistant"` row (2026-11-20).
+# "Seen" is a marker in the session's
 # own temp folder, the parent of `scratchpad_dir`, so every prompt after the
 # first costs one bash start and two file tests, and the marker goes when
 # that folder does. Without `scratchpad_dir` in the input it names nothing:
@@ -47,7 +53,8 @@
 # folder, but keeps the old session's name (sessions docs, read
 # 2026-11-06), so `/resume` listed two sessions under one name, and its
 # transcript opens with a `"type":"user"` row for `/clear` itself, which
-# read as under way. Its SessionStart, matcher `clear`, also runs this
+# read as under way while that row was the test. Its SessionStart, matcher
+# `clear`, also runs this
 # script, which records the name it inherited, or none, in
 # `.name-session-cleared`; a hook's `sessionTitle` is ignored there. The
 # first prompt then skips both checks while the name is still the one
@@ -59,7 +66,17 @@
 # SessionStart after /clear runs in the background (hooks docs), so a
 # first prompt that beat it, if one can (unmeasured), finds no record.
 # With a name inherited, that prompt leaves it and the next one names it;
-# with none, that prompt writes its marker and the session stays unnamed.
+# with none, that prompt names the session as any first prompt does.
+#
+# A plugin's copy stands down beside this setup's own. A hook in both a
+# settings file and a plugin's hooks.json runs twice per event (plugins
+# docs, "Convert an existing .claude/ setup", read 2026-11-20), and two
+# copies started together both pass the marker test. So a run with
+# CLAUDE_PLUGIN_ROOT set, which Claude Code exports to a plugin's hooks
+# alone, exits where `<config>/hooks/name-session.sh` exists, before it
+# writes anything. The file stands for its registration, which this hook
+# does not read: a copy deployed there and registered nowhere turns the
+# plugin's off too.
 #
 # Rules 2, 4 and 5 read handoff conventions: a brief file under
 # docs/handoffs/execute/, where audit-repo's file-queue scaffold puts one,
@@ -93,6 +110,9 @@ esac
 IFS= read -r -d '' INPUT || true
 CR=$'\r'
 CONFIG_DIR=${CLAUDE_CONFIG_DIR:-$HOME/.claude}
+
+# A plugin's copy, beside this setup's deployed one: that one names.
+[[ -n ${CLAUDE_PLUGIN_ROOT:-} && -f $CONFIG_DIR/hooks/name-session.sh ]] && exit 0
 
 # json_path <field>: the field's string value in REPLY, separators as "/".
 # Only for fields holding paths, which never contain a quote.
@@ -145,9 +165,10 @@ fi
 # shell with 1 before the `||` runs (2026-10-30).
 printf '' >"$MARKER" 2>/dev/null || exit 0
 
-# Already under way: running before this hook was deployed, or resumed.
+# Already under way: running before this hook was deployed, or resumed. A
+# reply says so; a `"type":"user"` row does not, as the header says.
 if [[ -z $FROM_CLEAR ]] && json_path transcript_path && [[ -s $REPLY ]] &&
-    grep -q -m1 '"type":"user"' "$REPLY" 2>/dev/null; then
+    grep -q -m1 '"type":"assistant"' "$REPLY" 2>/dev/null; then
     exit 0
 fi
 
